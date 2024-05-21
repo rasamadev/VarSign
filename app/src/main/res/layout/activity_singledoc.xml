@@ -23,7 +23,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginTop="48dp"
-        android:text="Localizacion"
+        android:text="Pagina de la firma"
         android:textSize="20sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
@@ -39,34 +39,37 @@
         android:textSize="20sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/etLocalizacion" />
+        app:layout_constraintTop_toBottomOf="@+id/etNumPagDoc" />
 
     <EditText
         android:id="@+id/etNombreArchivo"
-        android:layout_width="220dp"
+        android:layout_width="210dp"
         android:layout_height="45dp"
         android:layout_marginStart="24dp"
         android:layout_marginTop="8dp"
         android:ems="10"
-        android:hint="Ningun archivo seleccionado."
-        android:inputType="none|text"
         android:focusable="false"
         android:focusableInTouchMode="false"
+        android:hint="Ningun archivo seleccionado."
+        android:inputType="none|text"
         android:textSize="14sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/txt1" />
 
     <EditText
-        android:id="@+id/etLocalizacion"
-        android:layout_width="300dp"
+        android:id="@+id/etNumPagDoc"
+        android:layout_width="32dp"
         android:layout_height="45dp"
-        android:layout_marginStart="24dp"
         android:layout_marginTop="8dp"
+        android:layout_marginEnd="32dp"
         android:ems="10"
-        android:hint="El documento se ha firmado en..."
-        android:inputType="text"
+        android:hint="0"
+        android:inputType="number"
+        android:maxLength="3"
+        android:text="1"
         android:textSize="14sp"
-        app:layout_constraintStart_toStartOf="parent"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/txt2" />
 
     <RadioGroup
@@ -123,6 +126,7 @@
         android:layout_marginStart="8dp"
         android:text="SELECCIONAR"
         app:layout_constraintBottom_toBottomOf="@+id/etNombreArchivo"
+        app:layout_constraintEnd_toEndOf="@+id/etNumPagDoc"
         app:layout_constraintStart_toEndOf="@+id/etNombreArchivo" />
 
     <Button
@@ -134,5 +138,26 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/rgLugarFirma" />
+
+    <TextView
+        android:id="@+id/txt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:text="No se ha seleccionado un documento"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toBottomOf="@+id/etNumPagDoc"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/etNumPagDoc" />
+
+    <TextView
+        android:id="@+id/txtNumPagsDoc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="8dp"
+        android:textSize="14sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/txt" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

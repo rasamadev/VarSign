@@ -65,8 +65,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         btnInstalarCertificado.setOnClickListener(this)
         btnFirmarDocs.setOnClickListener(this)
 
-        // COMPROBAR SI EL DISPOSITIVO TIENE CONFIGURADO ALGUN PATRON
-        // EN EL CASO DE QUE NO, INSISTIR?
+        // COMPROBACION DE SI EL DISPOSITIVO TIENE CONFIGURADO ALGUN PATRON
         checkSecurityConfig()
     }
 
@@ -208,7 +207,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     startActivity(i)
                 }
                 1 -> {
-                    // Varios documentos
+                    // TODO Varios documentos
                     // SELECCIONAR CARPETA, RECORRER Y MOSTRAR EN LISTA DE CHECKS LOS ARCHIVOS A SELECCIONAR "GUARDAR RUTA"
                     // LLEVAR A PANTALLA DE SELECCION DE VARIOS DOCUMENTOS CON SELECCION DE ARCHIVO, RAZON, Y LOCALIDAD (CREAR)
                 }
@@ -234,7 +233,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             if (intent.resolveActivity(this.packageManager) != null) {
                 startActivity(intent)
             } else {
-                // Si no hay una actividad que pueda manejar el Intent, muestra un mensaje al usuario
                 Toast.makeText(this, "No se pudo abrir la configuración de seguridad", Toast.LENGTH_SHORT).show()
             }
         }

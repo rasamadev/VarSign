@@ -43,9 +43,13 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
+
     implementation("com.itextpdf:itextg:5.5.10")
     implementation("com.madgag:scpkix-jdk15on:1.47.0.2")
     implementation("com.madgag:scprov-jdk15on:1.47.0.2")
+
+//    implementation("com.itextpdf.android:itext-core-android:8.0.4")
+//    implementation("com.itextpdf.android:sign-android:8.0.4")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
