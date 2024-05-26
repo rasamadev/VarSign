@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RadioGroup xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:id="@+id/radioGroup">
+
+    <RadioButton
+        android:id="@+id/rbDiaArrIzq"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:checked="true"
+        android:text="Arriba a la izquierda" />
+
+    <RadioButton
+        android:id="@+id/rbDiaArrCen"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Arriba - centro" />
+
+    <RadioButton
+        android:id="@+id/rbDiaArrDer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Arriba a la derecha" />
+
+    <RadioButton
+        android:id="@+id/rbDiaAbaIzq"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Abajo a la izquierda" />
+
+    <RadioButton
+        android:id="@+id/rbDiaAbaCen"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Abajo - centro" />
+
+    <RadioButton
+        android:id="@+id/rbDiaAbaDer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Abajo a la derecha" />
+</RadioGroup>
