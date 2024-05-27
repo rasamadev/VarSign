@@ -79,8 +79,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     /** Texto que indica el numero de paginas del documento */
     private lateinit var txtNumPagsDoc: TextView
 
-    /** Texto que indica el numero de paginas del documento */
-    private lateinit var txt: TextView
+    /** Texto que, en base a si se ha seleccionado o no un documento:
+     * - No se ha seleccionado ningun documento.
+     * - ¿En que pagina quieres aplicar la firma?
+     */
+    private lateinit var txtSignPage: TextView
 
     /** RadioGroup de opciones de lugar de la firma */
     private lateinit var rgLugarFirma: RadioGroup
@@ -143,7 +146,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
                 // MOSTRAMOS LOS TEXTOS Y EDITTEXT PARA INDICAR EN QUE PAGINA
                 // SE QUIERE APLICAR LA FIRMA
-                txt.text = "¿En que pagina quieres aplicar la firma?"
+                txtSignPage.text = "¿En que pagina quieres aplicar la firma?"
                 etNumPagDoc.visibility = View.VISIBLE
                 etNumPagDoc.setText("1")
 
@@ -163,7 +166,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         btnSelDoc = findViewById<Button>(R.id.btnSelDoc)
         btnFirmar = findViewById<Button>(R.id.btnFirmar)
         etNombreArchivo = findViewById<EditText>(R.id.etNombreArchivo)
-        txt = findViewById<TextView>(R.id.txt) // TODO CAMBIAR ID
+        txtSignPage = findViewById<TextView>(R.id.txtSignPage)
         etNumPagDoc = findViewById<EditText>(R.id.etNumPagDoc)
         txtNumPagsDoc = findViewById<TextView>(R.id.txtNumPagsDoc)
         rgLugarFirma = findViewById<RadioGroup>(R.id.rgLugarFirma)
@@ -285,8 +288,9 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                     )
 
                     val tmp = File.createTempFile("eid", ".pdf", cacheDir)
-                    // TODO -- PENSAR: LO DEJO EN LA CARPETA DOCUMENTOS??
-                    val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")
+                    // TODO (HECHO?) -- PENSAR: LO DEJO EN LA CARPETA DOCUMENTOS??
+//                    val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")
+                    val file = File("/sdcard/VarSign/", "firmado_$docName")
                     val fos = FileOutputStream(file)
                     sign(
                         docSeleccionado,
@@ -437,7 +441,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     private fun dialogDocSigned() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("DOCUMENTO FIRMADO CON EXITO")
-        builder.setMessage("Se ha guardado en la carpeta 'Documentos' del dispositivo.\n\n¿Que quiere hacer?")
+        builder.setMessage("Se ha guardado en la carpeta 'VarSign' del dispositivo.\n\n¿Que quiere hacer?")
 
         builder.setPositiveButton("Abrir documento") { dialog, which ->
             val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")

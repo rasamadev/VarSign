@@ -1,11 +1,14 @@
 package com.rasamadev.varsign
 
+import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.app.AlertDialog
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.provider.Settings
 import android.security.KeyChain
 import android.view.View
@@ -14,8 +17,11 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
+import androidx.activity.OnBackPressedCallback
+import java.io.File
 import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
@@ -35,11 +41,15 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private var inicioApp = true
 
+    private var permisosConcedidos: Boolean = false
+
     companion object {
         const val PICK_PFX_REQUEST_CODE = 123
         const val PICK_PDF_REQUEST_CODE = 456
         const val PICK_DIRECTORY = 1
     }
+
+    private val REQUEST_CODE_PERMISSIONS = 123
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,8 +65,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         // COMPROBACION DE SI EL DISPOSITIVO TIENE CONFIGURADO ALGUN PATRON
         checkSecurityConfig()
+        // COMPROBACION DE SI LA APLICACION CUENTA CON PERMISOS DE ESCRITURA
+        checkPermissions()
 
-        // TODO AL PULSAR BOTON DE ATRAS, SALIR DE LA APP
+        // SI EL USUARIO PULSA EN EL BOTON DE ATRAS DEL DISPOSITIVO
+        // SE ABRIRA UN DIALOGO DE CONFIRMACION PARA SALIR DE LA APP
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                dialogExitApplication()
+            }
+        })
     }
 
     override fun onResume() {
@@ -66,6 +84,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
         else{
             checkSecurityConfig()
+            checkPermissions()
         }
     }
 
@@ -81,6 +100,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
         }
         requestBiometricAuthentication()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            createFolderVarSign()
+        }
+//        else {
+//            dialogPermissionsRequest()
+//        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -100,9 +129,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 //
 //            }
             data?.data?.let { uri ->
-//                val directoryPath2 = getDirectoryPath(uri)
-                val directoryPath = uri.path as String
-                println("uri.path: $directoryPath")
+                val directorySelected = getDirectoryPath(uri)
+//                val directoryPath2 = uri.path as String
+//                println("uri.path: $directoryPath")
 
 //                Toast.makeText(this, "Selected Directory: $directoryPath", Toast.LENGTH_SHORT).show()
 
@@ -118,7 +147,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     )
                 }
                 else {
-                    openVariousDocListActivity(pdfFileNames, directoryPath)
+                    openVariousDocListActivity(pdfFileNames, directorySelected)
                 }
 
                 // TODO -- PENSAR: PDFS CON CONTRASEÑA??
@@ -132,10 +161,28 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 //        }
     }
 
+    private fun createFolderVarSign(): Boolean {
+        val baseDir = Environment.getExternalStorageDirectory()
+        val newFolder = File(baseDir, "VarSign")
+        return if (!newFolder.exists()) {
+            newFolder.mkdirs()
+        } else {
+            false
+        }
+    }
+
     private fun checkSecurityConfig() {
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         if (!keyguardManager.isKeyguardSecure) {
             dialogSecurityConfig()
+        }
+    }
+
+    private fun checkPermissions() {
+        if (ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            dialogPermissionsRequest()
+        } else {
+            createFolderVarSign()
         }
     }
 
@@ -204,7 +251,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun getPdfFileNamesInDirectory(uri: Uri): List<String> {
         val documentFile = DocumentFile.fromTreeUri(this, uri)
-        // TODO COMPROBAR SI EL ARCHIVO ESTA MAL, NO SELECCIONARLO?
+        // TODO -- PENSAR: COMPROBAR SI EL ARCHIVO ESTA MAL, NO SELECCIONARLO?
+        var lf = documentFile?.listFiles()
         return documentFile?.listFiles()?.filter { it.isFile && it.name?.endsWith(".pdf", true) == true }
             ?.mapNotNull { it.name } ?: emptyList()
     }
@@ -214,10 +262,10 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         return documentFile?.name ?: "Unknown"
     }
 
-    private fun openVariousDocListActivity(pdfFileNames: List<String>, directoryPath: String) {
+    private fun openVariousDocListActivity(pdfFileNames: List<String>, directorySelected: String) {
         val intent = Intent(this, VariousDocListActivity::class.java).apply {
             putStringArrayListExtra("pdfFileNames", ArrayList(pdfFileNames))
-            putExtra("directoryPath", directoryPath)
+            putExtra("directorySelected", directorySelected)
         }
         startActivity(intent)
     }
@@ -307,6 +355,42 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 //            // Lógica al hacer clic en "Más tarde"
 //            dialog.dismiss() // Cierra el diálogo
 //        }
+
+        builder.setCancelable(false)
+        val dialog = builder.create()
+        dialog.show()
+    }
+
+    private fun dialogPermissionsRequest() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("ADVERTENCIA")
+        builder.setMessage("La aplicacion necesita permisos de almacenamiento para funcionar correctamente.") // TODO PERFECCIONAR MENSAJE
+
+        builder.setPositiveButton("Aceptar") { dialog, which ->
+            dialog.dismiss()
+            if (ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(WRITE_EXTERNAL_STORAGE), REQUEST_CODE_PERMISSIONS)
+            }
+        }
+
+        builder.setCancelable(false)
+        val dialog = builder.create()
+        dialog.show()
+    }
+
+    private fun dialogExitApplication() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Salir de la aplicación")
+        builder.setMessage("¿Estás seguro de que quieres salir de la aplicación?")
+
+        builder.setPositiveButton("Aceptar") { dialog, which ->
+            finishAffinity()
+            finish()
+        }
+
+        builder.setNegativeButton("Cancelar") { dialog, which ->
+            dialog.dismiss()
+        }
 
         builder.setCancelable(false)
         val dialog = builder.create()

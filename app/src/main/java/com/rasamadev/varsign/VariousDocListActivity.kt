@@ -13,7 +13,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
-import android.widget.ListView
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import androidx.appcompat.app.AlertDialog
@@ -27,6 +26,7 @@ import com.itextpdf.text.pdf.security.DigestAlgorithms
 import com.itextpdf.text.pdf.security.ExternalDigest
 import com.itextpdf.text.pdf.security.ExternalSignature
 import com.itextpdf.text.pdf.security.MakeSignature
+import com.itextpdf.text.pdf.security.PrivateKeySignature
 import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
 import org.spongycastle.jce.provider.BouncyCastleProvider
 import java.io.File
@@ -57,8 +57,8 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
     /** Coordenadas del rectangulo de la firma */
     private lateinit var rec: Rectangle
 
-    /** Ruta del directorio seleccionado */
-    private lateinit var path: String
+//    /** Ruta del directorio seleccionado */
+//    private lateinit var path: String
 
     /** Lista de documentos seleccionados para firmar */
     private lateinit var docsSelected: MutableList<String>
@@ -66,7 +66,8 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
     /** Alias del certificado seleccionado */
     private lateinit var aliasCert: String
 
-    private lateinit var directoryPath: String
+    /** Nombre del directorio seleccionado */
+    private lateinit var directorySelected: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,9 +81,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         btnAceptar.setOnClickListener(this)
 
         val pdfFileNames = intent.getStringArrayListExtra("pdfFileNames")
-        path = intent.getStringExtra("directoryPath") as String
-        directoryPath = path.replace("tree", "document")
-
+        directorySelected = intent.getStringExtra("directorySelected") as String
         pdfFileNames?.forEach { fileName ->
             val checkBox = CheckBox(this).apply {
                 text = fileName
@@ -131,17 +130,25 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
                     val provider = BouncyCastleProvider()
                     Security.addProvider(provider)
+
                     val pks: ExternalSignature = CustomPrivateKeySignature(
                         privateKey,
                         DigestAlgorithms.SHA256,
                         provider.getName()
                     )
+//                    val pks: ExternalSignature = PrivateKeySignature(
+//                        privateKey,
+//                        DigestAlgorithms.SHA256,
+//                        provider.getName()
+//                    )
 
                     val tmp = File.createTempFile("eid", ".pdf", cacheDir)
-                    // TODO BUCLE DE FIRMA DE DOCUMENTOS
                     for(doc: String in docsSelected){
-                        val file = Uri.fromFile(File("content://com.android.externalstorage.documents" + directoryPath, doc))
-                        val filesigned = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$doc")
+//                        val file = Uri.fromFile(File("content://com.android.externalstorage.documents" + directoryPath, doc))
+                        val file = Uri.fromFile(File("/sdcard/$directorySelected/$doc"))
+                        // TODO (HECHO?) COMPROBANTE SI EL DIRECTORIO DOCUMENTS NO EXISTE, A CARPETA DESCARGAS?
+//                        val filesigned = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$doc")
+                        val filesigned = File("/sdcard/VarSign/", "firmado_$doc")
                         val fos = FileOutputStream(filesigned)
                         sign(
                             file,
@@ -185,7 +192,6 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         signPage: Int,
         rec: Rectangle
     ){
-        // TODO ERROR RUTA
         val reader = PdfReader(contentResolver.openInputStream(uri!!))
         val stamper = PdfStamper.createSignature(reader, os, '\u0000')
 
@@ -195,7 +201,20 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
         val digest: ExternalDigest = BouncyCastleDigest()
 
-        CustomMakeSignature.signDetached(
+//        CustomMakeSignature.signDetached(
+//            appearance,
+//            digest,
+//            pk,
+//            chain as Array<X509Certificate>,
+//            null,
+//            null,
+//            null,
+//            0,
+//            subfilter,
+//            null as SignaturePolicyIdentifier?
+//        )
+
+        MakeSignature.signDetached(
             appearance,
             digest,
             pk,
@@ -311,8 +330,8 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
         builder.apply {
             setPositiveButton("Aceptar") { dialog, which ->
-                // TODO FIRMAR VARIOS DOCUMENTOS
                 firmar()
+                // TODO ALERTDIALOG Y VOLVER AL MENU DE INICIO
             }
             setNegativeButton("Cancelar") { dialog, which ->
                 dialog.dismiss()
