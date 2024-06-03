@@ -64,6 +64,9 @@ import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.Security
 import java.security.cert.X509Certificate
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 //import kotlin.coroutines.jvm.internal.CompletedContinuation.context
 
@@ -123,6 +126,9 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     /** Numero de paginas del documento seleccionado */
     private var docPages: Int = 0
 
+    /** Numero de la pagina donde se insertará la firma */
+    private var numPageSign: Int = 0
+
     /** Alias del certificado seleccionado */
     private lateinit var aliasCert: String
 
@@ -130,7 +136,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var pdfReader: PdfReader
 
     /** Posible contraseña del documento a firmar */
-    private lateinit var passwordDoc: String
+    private lateinit var passwordDoc: ByteArray
 
 //    val sharedPreferences: SharedPreferences = getSharedPreferences("docs", Context.MODE_PRIVATE)
 
@@ -141,10 +147,10 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     val getPdf = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { uri ->
             try{
-                // TODO COMPROBACION PDF CON CONTRASEÑA
+                // COMPROBACION PDF CON CONTRASEÑA
                 docName = getFileName(uri) as String
                 if(Utils.isPasswordProtected(contentResolver.openInputStream(uri))){
-                    dialogRequestPassword()
+                    dialogRequestPassword(uri)
                 }
                 else{
                     continueDocSelected(uri)
@@ -176,6 +182,15 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 //                txtNumPagsDoc.text = "Numero de paginas del documento: $docPages"
             }
             catch (e: InvalidPdfException) {
+                // RESTABLECEMOS LOS ELEMENTOS DE LA PAGINA A SU ESTADO PRIMARIO
+                // Y docSeleccionado = null PARA QUE, CUANDO PULSEMOS EN EL BOTON
+                // "FIRMAR DOCUMENTO", NO HAYA DOCUMENTO SELECCIONADO
+                docSeleccionado = null
+                etNombreArchivo.setText("")
+                txtSignPage.text = "No se ha seleccionado un documento"
+                etNumPagDoc.visibility = View.INVISIBLE
+                txtNumPagsDoc.text = ""
+
                 Utils.mostrarError(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
             }
         }
@@ -215,8 +230,6 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 //                startActivityForResult(intent, PICK_PDF_REQUEST_CODE)
             }
             R.id.btnFirmar -> {
-                var comprobationFileExistsInVarSign: File = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
-
                 // SI NO SE HA SELECCIONADO NINGUN DOCUMENTO
                 if(docSeleccionado == null){
                     Utils.mostrarError(this, "¡No has seleccionado un documento!")
@@ -227,10 +240,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                 else if(etNumPagDoc.text.toString() == "" || Integer.parseInt(etNumPagDoc.text.toString()) < 1 || Integer.parseInt(etNumPagDoc.text.toString()) > docPages){
                     Utils.mostrarError(this, "Por favor, establece un numero de pagina correcto.")
                 }
-                else if(comprobationFileExistsInVarSign.exists()){
+                else if(File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName").exists()){
                     dialogDocumentAlreadyExists()
                 }
                 else{
+                    numPageSign = Integer.parseInt(etNumPagDoc.text.toString())
                     continueSign()
                 }
             }
@@ -279,14 +293,16 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun continueDocSelected(uri: Uri, passwordExists: Boolean = false) {
-        try{
+//        try{
             // GUARDAMOS EL NOMBRE Y RUTA DEL DOCUMENTO SELECCIONADO
-//            docName = getFileName(uri) as String
+            docName = getFileName(uri) as String
             docPath = getFilePath(uri.path) as String
 
+            docSeleccionado = uri
+
             if(passwordExists){
-                val pass = passwordDoc.toByteArray()
-                pdfReader = PdfReader(contentResolver.openInputStream(uri), pass)
+//                val pass = passwordDoc.toByteArray()
+                pdfReader = PdfReader(contentResolver.openInputStream(uri), passwordDoc)
             }
             else{
                 pdfReader = PdfReader(contentResolver.openInputStream(uri))
@@ -294,9 +310,6 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
             // RECOGEMOS EL NUMERO DE PAGINAS DEL DOCUMENTO SELECCIONADO
             docPages = pdfReader.numberOfPages
-
-            // SI EL DOCUMENTO SELECCIONADO ESTA CORRECTO, LO GUARDAMOS
-//        docSeleccionado = uri
 
             // ESTABLECEMOS EL NOMBRE EN EL EDITTEXT 'etNombreArchivo'
             etNombreArchivo.setText(docName)
@@ -309,22 +322,36 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
             // APLICARIA EL MAXLENGTH SEGUN LAS PAGS DEL DOC PERO NO SE PUEDE
             txtNumPagsDoc.text = "Numero de paginas del documento: $docPages"
-        }
-        catch (e: InvalidPdfException) {
-            Utils.mostrarError(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
-        }
+//        }
+//        catch (e: InvalidPdfException) {
+//            Utils.mostrarError(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
+//        }
     }
 
     private fun continueSign() {
         idLugarFirma = rgLugarFirma.checkedRadioButtonId
-        when (idLugarFirma) {
-            rbArrIzq.id -> rec = Rectangle(20f, 800f, 130f, 830f)
-            rbArrCen.id -> rec = Rectangle(243f, 800f, 353f, 830f)
-            rbArrDer.id -> rec = Rectangle(466f, 800f, 576f, 830f)
-            rbAbaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
-            rbAbaCen.id -> rec = Rectangle(243f, 20f, 353f, 50f)
-            rbAbaDer.id -> rec = Rectangle(466f, 20f, 576f, 50f)
+        val rectangle: Rectangle = pdfReader.getPageSizeWithRotation(numPageSign)
+        if (rectangle.height >= rectangle.width){
+            when (idLugarFirma) {
+                rbArrIzq.id -> rec = Rectangle(20f, 800f, 130f, 830f)
+                rbArrCen.id -> rec = Rectangle(243f, 800f, 353f, 830f)
+                rbArrDer.id -> rec = Rectangle(466f, 800f, 576f, 830f)
+                rbAbaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
+                rbAbaCen.id -> rec = Rectangle(243f, 20f, 353f, 50f)
+                rbAbaDer.id -> rec = Rectangle(466f, 20f, 576f, 50f)
+            }
         }
+        else{
+            when (idLugarFirma) {
+                rbArrIzq.id -> rec = Rectangle(20f, 570f, 130f, 600f)
+                rbArrCen.id -> rec = Rectangle(360f, 570f, 470f, 600f)
+                rbArrDer.id -> rec = Rectangle(690f, 570f, 800f, 600f)
+                rbAbaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
+                rbAbaCen.id -> rec = Rectangle(360f, 20f, 470f, 50f)
+                rbAbaDer.id -> rec = Rectangle(690f, 20f, 800f, 50f)
+            }
+        }
+
         dialogSignMethods()
     }
 
@@ -348,7 +375,6 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
                     val tmp = File.createTempFile("eid", ".pdf", cacheDir)
                     // TODO -- PENSAR: NO SE PUEDE APLICAR MAS DE UNA FIRMA?
-                    // TODO -- PENSAR: DOCUMENTOS HORIZONTALES??
                     // TODO (HECHO?) -- PENSAR: LO DEJO EN LA CARPETA DOCUMENTOS??
 //                    val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")
                     val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
@@ -454,21 +480,25 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
     // ---------------------------------------- DIALOG´S ---------------------------------------- //
 
-    private fun dialogRequestPassword() {
-        // Crear el EditText
+    private fun dialogRequestPassword(uri: Uri) {
         val editText = EditText(this)
         editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
 //        editText.hint = "Introduce tu texto aquí"
 
-        // Crear el AlertDialog
         val dialog = AlertDialog.Builder(this)
             .setTitle("DOCUMENTO PROTEGIDO")
             .setMessage("Introduce la contraseña:")
             .setView(editText)
 
             .setPositiveButton("Aceptar") { dialogInterface, i ->
-                val inputText = editText.text.toString()
-                Toast.makeText(this, "Texto ingresado: $inputText", Toast.LENGTH_SHORT).show()
+                passwordDoc = editText.text.toString().toByteArray()
+                if(Utils.IsPasswordValid(contentResolver.openInputStream(uri), passwordDoc)){
+                    continueDocSelected(uri, true)
+                }
+                else{
+                    dialogRequestPassword(uri)
+                }
+
             }
             .setNegativeButton("Cancelar") { dialogInterface, i ->
                 dialogInterface.dismiss()
@@ -481,9 +511,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     private fun dialogDocumentAlreadyExists() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")
-        builder.setMessage("Se ha encontrado un documento con el mismo nombre en la carpeta 'VarSign'.\n\nSi continua, ese documento se sobreescribirá por el documento actual, ¿esta seguro?")
+//        builder.setMessage("Se ha encontrado un documento con el mismo nombre en la carpeta 'VarSign'.\n\nSi continua, ese documento se sobreescribirá por el documento actual, ¿esta seguro?")
+        builder.setMessage("Se ha encontrado un documento con el nombre 'firmado_$docName' en la carpeta 'VarSign'.\n\nSi continua, ese documento se sobreescribirá por el documento actual, ¿esta seguro?")
 
         builder.setPositiveButton("Aceptar") { dialog, which ->
+            numPageSign = Integer.parseInt(etNumPagDoc.text.toString())
             continueSign()
         }
 
@@ -576,8 +608,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun dialogDocSigned() {
 
+        val calendar = Calendar.getInstance()
+        val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
+
         lifecycleScope.launch(Dispatchers.IO){
-            guardarPath("firmado_$docName")
+            guardarPath("firmado_$docName?${dateFormat.format(calendar.time)}")
         }
 
         val builder = AlertDialog.Builder(this)

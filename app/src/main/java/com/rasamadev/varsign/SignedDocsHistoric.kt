@@ -56,8 +56,7 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
     override fun onItemClick(position: Int) {
         try {
             val item = (recyclerView.adapter as AdapterSignedDocsHistoric).itemList[position]
-    //        Toast.makeText(this, "Pulsaste: $item", Toast.LENGTH_SHORT).show()
-            val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), item)
+            val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), item.substringBefore("?"))
 
             if(file.exists()){
                 val uri: Uri = FileProvider.getUriForFile(applicationContext, "com.rasamadev.varsign.provider", file)

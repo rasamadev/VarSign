@@ -187,7 +187,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
                     // SI EL DIRECTORIO CONTIENE PDF´S
                     if (pdfFileNames.isNotEmpty()) {
-                        // TODO RECORRER ARCHIVOS Y VER SI ALGUNO TIENE CONTRASEÑA
                         val amountOfDocs = pdfFileNames.size
                         val pdfs: MutableList<String> = mutableListOf()
                         var edf: Boolean = false
@@ -216,8 +215,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 catch (e: BadPasswordException){
 
                 }
-
-                // TODO -- PENSAR: PDFS CON CONTRASEÑA??
             }
         }
 //        if (requestCode == PICK_PDF_REQUEST_CODE && resultCode == RESULT_OK) {
@@ -228,14 +225,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 //        }
     }
 
-    private fun isPasswordProtected(uri: Uri): Boolean {
-        return try {
-            val p = PdfReader(contentResolver.openInputStream(uri))
-            false
-        } catch (e: BadPasswordException) {
-            true
-        }
-    }
+//    private fun isPasswordProtected(uri: Uri): Boolean {
+//        return try {
+//            val p = PdfReader(contentResolver.openInputStream(uri))
+//            false
+//        } catch (e: BadPasswordException) {
+//            true
+//        }
+//    }
 
     /**
      * METODO QUE CONTROLA LA RESPUESTA A LA SOLICITUD

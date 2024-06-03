@@ -44,6 +44,9 @@ import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.Security
 import java.security.cert.X509Certificate
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
@@ -121,9 +124,20 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                     }
                 }
 
+                var docsFounded: String = ""
+                for (i in 0 until docsSelected.size) {
+                    val f = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_${docsSelected[i]}")
+                    if(f.exists()){
+                        docsFounded += "-${docsSelected[i]}\n"
+                    }
+                }
+
                 // SI NO SE HA SELECCIONADO NINGUN DOCUMENTO
                 if (docsSelected.isEmpty()) {
                     Utils.mostrarError(this, "¡Selecciona al menos un documento!")
+                }
+                else if(docsFounded != ""){
+                    dialogDocumentsAlreadyExists(docsFounded)
                 }
                 else{
                     dialogSignPosition()
@@ -162,7 +176,6 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 //                        val file = Uri.fromFile(File("/sdcard/$directorySelected/$doc"))
                         val file = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(directorySelected), doc))
                         // TODO (HECHO?) COMPROBANTE SI EL DIRECTORIO DOCUMENTS NO EXISTE, A CARPETA DESCARGAS?
-                        // TODO ARCHIVO CON EL MISMO NOMBRE??
 //                        val filesigned = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$doc")
                         val filesigned = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$doc")
 //                        val filesigned = File(Environment.getExternalStoragePublicDirectory(directorySelected), "firmado_$doc")
@@ -191,8 +204,11 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                             null as SignaturePolicyIdentifier?
                         )
 
+                        val calendar = Calendar.getInstance()
+                        val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
+
                         lifecycleScope.launch(Dispatchers.IO){
-                            guardarPath("firmado_$doc")
+                            guardarPath("firmado_$doc?${dateFormat.format(calendar.time)}")
                         }
 
 //                        sign(
@@ -285,6 +301,22 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     // ---------------------------------------- DIALOG´S ---------------------------------------- //
+
+    private fun dialogDocumentsAlreadyExists(docsFounded: String) {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("ADVERTENCIA")
+        builder.setMessage("Se ha encontrado en la carpeta 'VarSign' una copia con el mismo nombre de los siguientes documentos seleccionados:\n\n$docsFounded\nSi continua, seran sobreescritos por los documentos actuales, ¿Esta seguro?")
+
+        builder.setPositiveButton("Aceptar") { dialog, which ->
+            dialogSignPosition()
+        }
+
+        builder.setNegativeButton("Cancelar") { dialog, which ->
+            dialog.dismiss()
+        }
+
+        builder.create().show()
+    }
 
     private fun dialogSignPosition() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_variousdoc_signposition, null)

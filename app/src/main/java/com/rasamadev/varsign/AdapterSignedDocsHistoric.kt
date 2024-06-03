@@ -1,12 +1,14 @@
 package com.rasamadev.varsign
 
-// MyAdapter.kt
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class AdapterSignedDocsHistoric(
     val itemList: List<String>,
@@ -18,7 +20,8 @@ class AdapterSignedDocsHistoric(
     }
 
     inner class MyViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView), View.OnClickListener {
-        val textView: TextView = itemView.findViewById(R.id.docSignedText)
+        val textViewName: TextView = itemView.findViewById(R.id.docSignedTextName)
+        val textViewDate: TextView = itemView.findViewById(R.id.docSignedTextDate)
         val imageView: ImageView = itemView.findViewById(R.id.docSignedIcon)
 
         init {
@@ -39,7 +42,8 @@ class AdapterSignedDocsHistoric(
     }
 
     override fun onBindViewHolder(holder: MyViewHolder, position: Int) {
-        holder.textView.text = itemList[position]
+        holder.textViewName.text = itemList[position].substringBefore("?")
+        holder.textViewDate.text = "Firmado: ${itemList[position].substringAfter("?")}"
         holder.imageView.setImageResource(R.drawable.ic_document)
     }
 
