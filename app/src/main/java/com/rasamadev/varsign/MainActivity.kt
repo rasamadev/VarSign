@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
@@ -21,10 +22,33 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.activity.OnBackPressedCallback
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import androidx.lifecycle.lifecycleScope
+import com.itextpdf.text.exceptions.BadPasswordException
+import com.itextpdf.text.pdf.PdfDocument
+import com.itextpdf.text.pdf.PdfReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.InputStream
 import java.util.concurrent.Executor
 
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
 class MainActivity : AppCompatActivity(), View.OnClickListener {
+
+    // ELEMENTOS PANTALLA
 
     /** Boton "Instalar certificado" */
     private lateinit var btnInstalarCertificado: Button
@@ -32,24 +56,33 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     /** Boton "Firmar documento(s)" */
     private lateinit var btnFirmarDocs: Button
 
+    /** Boton "Firmar documento(s)" */
+    private lateinit var btnDocsFirmados: Button
+
+    // ------------------------------------------------------
+
     /** Configuracion biometrica */
     private lateinit var biometricPrompt: BiometricPrompt
     private lateinit var executor: Executor
     private lateinit var promptInfo: BiometricPrompt.PromptInfo
 
+    /** Opciones firmar uno o varios documentos */
     private var option = 0
 
+    /** Variable para comprobar si es la primera vez que se ejecuta la aplicacion */
     private var inicioApp = true
 
-    private var permisosConcedidos: Boolean = false
-
+    /** Codigos de solicitud de archivos '.pfx' y directorios */
     companion object {
         const val PICK_PFX_REQUEST_CODE = 123
         const val PICK_PDF_REQUEST_CODE = 456
         const val PICK_DIRECTORY = 1
     }
 
+    /** Codigo de solicitud de permisos de escritura */
     private val REQUEST_CODE_PERMISSIONS = 123
+
+    private lateinit var sdh: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,10 +91,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // Configuracion de elementos del layout
         btnInstalarCertificado = findViewById<Button>(R.id.btnInstalarCertificado)
         btnFirmarDocs = findViewById<Button>(R.id.btnFirmarDocs)
+        btnDocsFirmados = findViewById<Button>(R.id.btnDocsFirmados)
 
         // Configurar los listeners de clic
         btnInstalarCertificado.setOnClickListener(this)
         btnFirmarDocs.setOnClickListener(this)
+        btnDocsFirmados.setOnClickListener(this)
 
         // COMPROBACION DE SI EL DISPOSITIVO TIENE CONFIGURADO ALGUN PATRON
         checkSecurityConfig()
@@ -75,6 +110,27 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 dialogExitApplication()
             }
         })
+
+        // SI HEMOS VUELTO A ESTA PANTALLA DESPUES DE FIRMAR VARIOS DOCUMENTOS
+        if (intent.getStringExtra("docsFirmados") == "true"){
+            Utils.mostrarError(this, "Los documentos se han firmado con exito. Se han guardado en la carpeta 'VarSign' del dispositivo.")
+            // Utils.mostrarError(this, "Los documentos se han firmado con exito. Se han guardado en la carpeta 'Documentos' del dispositivo.")
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            getPaths().collect {
+                println("LAUNCH: ${it.path}")
+                sdh = it.path
+            }
+        }
+
+        // TODO (HECHO?) -- ORDENAR MEJOR CLASES
+    }
+
+    private fun getPaths() = dataStore.data.map { preferences ->
+        ModeloDatos(
+            path = preferences[stringPreferencesKey("paths")].orEmpty()
+        )
     }
 
     override fun onResume() {
@@ -90,26 +146,25 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onClick(view: View?) {
         when (view?.id) {
+            /** Instalar certificado (Solicitud de archivo .pfx) */
             R.id.btnInstalarCertificado -> {
-                option = 1
-//                requestBiometricAuthentication()
+                openPfxPicker()
             }
             R.id.btnFirmarDocs -> {
-                option = 2
-//                requestBiometricAuthentication()
+                requestBiometricAuthentication()
+            }
+            R.id.btnDocsFirmados -> {
+                // SI NO HAY NIGUN REGISTRO DE DOCUMENTO FIRMADO GUARDADO EN DATASTORE
+                if(sdh.isNullOrEmpty()){
+                    Utils.mostrarError(this, "¡Aun no has firmado ningun documento!")
+                }
+                else{
+                    startActivity(Intent(this, SignedDocsHistoric::class.java).apply {
+                        putExtra("SignedDocsHistoric", sdh)
+                    })
+                }
             }
         }
-        requestBiometricAuthentication()
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE_PERMISSIONS && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            createFolderVarSign()
-        }
-//        else {
-//            dialogPermissionsRequest()
-//        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -125,29 +180,41 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         // SOLICITUD DE DIRECTORIO (FIRMAR VARIOS DOCUMENTOS)
         if (requestCode == PICK_DIRECTORY && resultCode == RESULT_OK) {
-//            data?.data?.also {
-//
-//            }
             data?.data?.let { uri ->
-                val directorySelected = getDirectoryPath(uri)
-//                val directoryPath2 = uri.path as String
-//                println("uri.path: $directoryPath")
+                try {
+                    val directorySelected = getDirectoryPath(uri)
+                    val pdfFileNames = getPdfFileNamesInDirectory(uri)
 
-//                Toast.makeText(this, "Selected Directory: $directoryPath", Toast.LENGTH_SHORT).show()
+                    // SI EL DIRECTORIO CONTIENE PDF´S
+                    if (pdfFileNames.isNotEmpty()) {
+                        // TODO RECORRER ARCHIVOS Y VER SI ALGUNO TIENE CONTRASEÑA
+                        val amountOfDocs = pdfFileNames.size
+                        val pdfs: MutableList<String> = mutableListOf()
+                        var edf: Boolean = false
+                        for(i in (0..(amountOfDocs - 1))){
+                            val urii = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(directorySelected), pdfFileNames[i]))
+//                            if (!isPasswordProtected(uri)){
+//                                pdfs.add(i, pdfFileNames[i])
+//                            }
+                            if (!Utils.isPasswordProtected(contentResolver.openInputStream(urii))){
+                                pdfs.add(i, pdfFileNames[i])
+                            }
+                            else{
+                                edf = true
+                            }
+                        }
 
-//                    showPdfFilesInDirectory(uri)
-
-                val pdfFileNames = getPdfFileNamesInDirectory(uri)
-
-                // SI EL DIRECTORIO NO CONTIENE PDF´S
-                if (pdfFileNames.isEmpty()) {
-                    Utils.mostrarError(
-                        this,
-                        "No se han encontrado documentos con la extension '.pdf' en el directorio seleccionado.\n\nPor favor, selecciona otro directorio diferente."
-                    )
+                        openVariousDocListActivity(pdfs, directorySelected, edf)
+                    }
+                    else {
+                        Utils.mostrarError(
+                            this,
+                            "No se han encontrado documentos con la extension '.pdf' en el directorio seleccionado.\n\nPor favor, selecciona otro directorio diferente."
+                        )
+                    }
                 }
-                else {
-                    openVariousDocListActivity(pdfFileNames, directorySelected)
+                catch (e: BadPasswordException){
+
                 }
 
                 // TODO -- PENSAR: PDFS CON CONTRASEÑA??
@@ -161,13 +228,39 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 //        }
     }
 
-    private fun createFolderVarSign(): Boolean {
-        val baseDir = Environment.getExternalStorageDirectory()
-        val newFolder = File(baseDir, "VarSign")
-        return if (!newFolder.exists()) {
-            newFolder.mkdirs()
-        } else {
+    private fun isPasswordProtected(uri: Uri): Boolean {
+        return try {
+            val p = PdfReader(contentResolver.openInputStream(uri))
             false
+        } catch (e: BadPasswordException) {
+            true
+        }
+    }
+
+    /**
+     * METODO QUE CONTROLA LA RESPUESTA A LA SOLICITUD
+     * DEL PERMISO "WRITE_EXTERNAL_STORAGE"
+     **/
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            createFolderVarSign()
+        }
+//        else {
+//            dialogPermissionsRequest()
+//        }
+    }
+
+    /**
+     * METODO PARA CREAR LA CARPETA "VARSIGN" EN LA RAIZ DEL DISPOSITIVO
+     * */
+    private fun createFolderVarSign() {
+        val baseDir = Environment.getExternalStorageDirectory()
+//        val baseDir = "/sdcard/"
+//        val newFolder = Environment.getExternalStoragePublicDirectory("VarSign")
+        val newFolder = File(baseDir, "VarSign")
+        if (!newFolder.exists()) {
+            newFolder.mkdirs()
         }
     }
 
@@ -178,11 +271,32 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
+    /**
+     * METODO QUE COMPRUEBA SI EL DISPOSITIVO TIENE PERMISOS DE ESCRITURA
+     * SI EL DISPOSITIVO ES ANDROID 11+ (API 30+), COMPRUEBA EL PERMISO "MANAGE_EXTERNAL_STORAGE"
+     * EN CASO CONTRARIO, COMPRUEBA EL PERMISO "WRITE_EXTERNAL_STORAGE"
+     * */
     private fun checkPermissions() {
-        if (ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            dialogPermissionsRequest()
-        } else {
-            createFolderVarSign()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                dialogPermissionsRequest()
+//            ActivityCompat.requestPermissions(
+//                this,
+//                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+//                1
+//            )
+            }
+            else {
+                createFolderVarSign()
+            }
+        }
+        else{
+            if(ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+                dialogPermissionsRequest()
+            }
+            else {
+                createFolderVarSign()
+            }
         }
     }
 
@@ -190,25 +304,17 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         executor = ContextCompat.getMainExecutor(this)
         biometricPrompt = BiometricPrompt(this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    super.onAuthenticationError(errorCode, errString)
-                    if(errorCode != 10){
-                        Toast.makeText(applicationContext,"ERROR: $errString (Codigo de error: $errorCode)", Toast.LENGTH_SHORT).show()
-                    }
-                }
+//                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+//                    super.onAuthenticationError(errorCode, errString)
+//                    if(errorCode != 10){
+//                        Toast.makeText(applicationContext,"ERROR: $errString (Codigo de error: $errorCode)", Toast.LENGTH_SHORT).show()
+//                    }
+//                }
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
-                    /** Instalar certificado (Solicitud de archivo .pfx) */
-                    if(option == 1) {
-                        openPfxPicker()
-                    }
                     /** Mostrar dialog con opciones de firmar uno o varios documentos */
-                    else if(option == 2){
-                        // MOSTRAR MENU CON DOS APARTADOS DE FIRMAR UNO O VARIOS DOCUMENTOS
-                        dialogDocOptions()
-                    }
-
+                    dialogDocOptions()
                 }
 
                 override fun onAuthenticationFailed() {
@@ -251,21 +357,27 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun getPdfFileNamesInDirectory(uri: Uri): List<String> {
         val documentFile = DocumentFile.fromTreeUri(this, uri)
-        // TODO -- PENSAR: COMPROBAR SI EL ARCHIVO ESTA MAL, NO SELECCIONARLO?
-        var lf = documentFile?.listFiles()
-        return documentFile?.listFiles()?.filter { it.isFile && it.name?.endsWith(".pdf", true) == true }
-            ?.mapNotNull { it.name } ?: emptyList()
+        return documentFile?.listFiles()?.filter {
+            it.isFile && it.name?.endsWith(".pdf", true) == true && it.length() > 0
+        } ?.mapNotNull {
+            it.name
+        } ?: emptyList()
     }
 
     private fun getDirectoryPath(uri: Uri): String {
-        val documentFile = DocumentFile.fromTreeUri(this, uri)
-        return documentFile?.name ?: "Unknown"
+//        val documentFile = DocumentFile.fromTreeUri(this, uri)
+//        val a = uri.path
+//        val b = uri.pathSegments
+//        val c = uri.encodedPath
+//        return documentFile?.name ?: "Unknown"
+        return uri.lastPathSegment?.substringAfter("primary:") ?: "Unknown"
     }
 
-    private fun openVariousDocListActivity(pdfFileNames: List<String>, directorySelected: String) {
+    private fun openVariousDocListActivity(pdfFileNames: List<String>, directorySelected: String, encryptedDocsFounded: Boolean) {
         val intent = Intent(this, VariousDocListActivity::class.java).apply {
             putStringArrayListExtra("pdfFileNames", ArrayList(pdfFileNames))
             putExtra("directorySelected", directorySelected)
+            putExtra("encryptedDocsFounded", encryptedDocsFounded)
         }
         startActivity(intent)
     }
@@ -344,23 +456,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
         }
 
-//        // Configurar el botón negativo y su evento onClick
-//        builder.setNegativeButton("Cancelar") { dialog, which ->
-//            // Lógica al hacer clic en "Cancelar"
-//            dialog.dismiss() // Cierra el diálogo
-//        }
-//
-//        // Configurar el botón neutral y su evento onClick (opcional)
-//        builder.setNeutralButton("Más tarde") { dialog, which ->
-//            // Lógica al hacer clic en "Más tarde"
-//            dialog.dismiss() // Cierra el diálogo
-//        }
-
         builder.setCancelable(false)
         val dialog = builder.create()
         dialog.show()
     }
 
+    /**
+     * DIALOGO PRE-SOLICITUD DE PERMISOS DE ESCRITURA
+     * */
     private fun dialogPermissionsRequest() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")
@@ -368,8 +471,19 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         builder.setPositiveButton("Aceptar") { dialog, which ->
             dialog.dismiss()
-            if (ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(WRITE_EXTERNAL_STORAGE), REQUEST_CODE_PERMISSIONS)
+
+            if (Build.VERSION.SDK_INT >= 30) {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:com.rasamadev.varsign")
+                    )
+                )
+            }
+            else{
+                if (ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, arrayOf(WRITE_EXTERNAL_STORAGE), REQUEST_CODE_PERMISSIONS)
+                }
             }
         }
 
@@ -380,7 +494,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun dialogExitApplication() {
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("Salir de la aplicación")
+//        builder.setTitle("Salir de la aplicación")
         builder.setMessage("¿Estás seguro de que quieres salir de la aplicación?")
 
         builder.setPositiveButton("Aceptar") { dialog, which ->

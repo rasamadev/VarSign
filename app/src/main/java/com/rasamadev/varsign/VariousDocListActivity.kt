@@ -1,5 +1,6 @@
 package com.rasamadev.varsign
 
+import android.content.Intent
 import android.net.Uri
 import android.os.AsyncTask
 import android.os.Bundle
@@ -17,6 +18,10 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.appbar.MaterialToolbar
 import com.itextpdf.text.DocumentException
 import com.itextpdf.text.Rectangle
 import com.itextpdf.text.pdf.PdfReader
@@ -26,7 +31,8 @@ import com.itextpdf.text.pdf.security.DigestAlgorithms
 import com.itextpdf.text.pdf.security.ExternalDigest
 import com.itextpdf.text.pdf.security.ExternalSignature
 import com.itextpdf.text.pdf.security.MakeSignature
-import com.itextpdf.text.pdf.security.PrivateKeySignature
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
 import org.spongycastle.jce.provider.BouncyCastleProvider
 import java.io.File
@@ -42,6 +48,9 @@ import java.security.cert.X509Certificate
 class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
     // ELEMENTOS PANTALLA
+
+
+    private lateinit var toolBarVariousDocs: MaterialToolbar
 
     /** Lista de documentos a seleccionar para su posterior firma */
     private lateinit var cbDocsContainer: LinearLayout
@@ -73,6 +82,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_variousdoclist)
 
+        toolBarVariousDocs = findViewById(R.id.toolBarVariousDocs)
         cbDocsContainer = findViewById<LinearLayout>(R.id.cbDocsContainer)
         btnCancelar = findViewById<Button>(R.id.btnCancelar)
         btnAceptar = findViewById<Button>(R.id.btnAceptar)
@@ -80,15 +90,20 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         btnCancelar.setOnClickListener(this)
         btnAceptar.setOnClickListener(this)
 
+        setSupportActionBar(toolBarVariousDocs)
+
         val pdfFileNames = intent.getStringArrayListExtra("pdfFileNames")
         directorySelected = intent.getStringExtra("directorySelected") as String
         pdfFileNames?.forEach { fileName ->
             val checkBox = CheckBox(this).apply {
                 text = fileName
-                textSize = 25f
+                textSize = 26f
                 isChecked = true
             }
             cbDocsContainer.addView(checkBox)
+        }
+        if(intent.getBooleanExtra("encryptedDocsFounded", true)){
+            Utils.mostrarError(this, "Se han eliminado de la lista uno o varios documentos protegidos con contraseña.\n\nSi desea firmar esos documentos, por favor, hagalo mediante la opcion de firma de 'Un documento'")
         }
     }
 
@@ -118,9 +133,8 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
-    private fun firmar() {
+    private fun signVariousDocuments() {
         object : AsyncTask<Void?, Void?, Void?>() {
-
             override fun doInBackground(vararg params: Void?): Void? {
                 var privateKey: PrivateKey? = null
                 try {
@@ -145,22 +159,53 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                     val tmp = File.createTempFile("eid", ".pdf", cacheDir)
                     for(doc: String in docsSelected){
 //                        val file = Uri.fromFile(File("content://com.android.externalstorage.documents" + directoryPath, doc))
-                        val file = Uri.fromFile(File("/sdcard/$directorySelected/$doc"))
+//                        val file = Uri.fromFile(File("/sdcard/$directorySelected/$doc"))
+                        val file = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(directorySelected), doc))
                         // TODO (HECHO?) COMPROBANTE SI EL DIRECTORIO DOCUMENTS NO EXISTE, A CARPETA DESCARGAS?
+                        // TODO ARCHIVO CON EL MISMO NOMBRE??
 //                        val filesigned = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$doc")
-                        val filesigned = File("/sdcard/VarSign/", "firmado_$doc")
+                        val filesigned = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$doc")
+//                        val filesigned = File(Environment.getExternalStoragePublicDirectory(directorySelected), "firmado_$doc")
+//                        val filesigned = File("/sdcard/VarSign/", "firmado_$doc")
                         val fos = FileOutputStream(filesigned)
-                        sign(
-                            file,
-                            fos,
-                            chain,
+
+                        val reader = PdfReader(contentResolver.openInputStream(file!!))
+                        val stamper = PdfStamper.createSignature(reader, fos, '\u0000')
+
+                        val appearance = stamper.signatureAppearance
+                        appearance.setVisibleSignature(rec, 1, "sig")
+                        appearance.imageScale = -1f
+
+                        val digest: ExternalDigest = BouncyCastleDigest()
+
+                        MakeSignature.signDetached(
+                            appearance,
+                            digest,
                             pks,
-//                            DigestAlgorithms.SHA256,
-//                            provider.getName(),
+                            chain as Array<X509Certificate>,
+                            null,
+                            null,
+                            null,
+                            0,
                             MakeSignature.CryptoStandard.CADES,
-                            1,
-                            rec
+                            null as SignaturePolicyIdentifier?
                         )
+
+                        lifecycleScope.launch(Dispatchers.IO){
+                            guardarPath("firmado_$doc")
+                        }
+
+//                        sign(
+//                            file,
+//                            fos,
+//                            chain,
+//                            pks,
+////                            DigestAlgorithms.SHA256,
+////                            provider.getName(),
+//                            MakeSignature.CryptoStandard.CADES,
+//                            1,
+//                            rec
+//                        )
                     }
                 } catch (e: KeyChainException) {
                     e.printStackTrace()
@@ -180,28 +225,41 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         }.execute()
     }
 
-    @Throws(GeneralSecurityException::class, IOException::class, DocumentException::class)
-    fun sign(
-        uri: Uri?,
-        os: FileOutputStream?,
-        chain: Array<X509Certificate>?,
-        pk: ExternalSignature,
-//        digestAlgorithm: String?,
-//        provider: String?,
-        subfilter: MakeSignature.CryptoStandard,
-        signPage: Int,
-        rec: Rectangle
-    ){
-        val reader = PdfReader(contentResolver.openInputStream(uri!!))
-        val stamper = PdfStamper.createSignature(reader, os, '\u0000')
-
-        val appearance = stamper.signatureAppearance
-        appearance.setVisibleSignature(rec, signPage, "sig")
-        appearance.imageScale = -1f
-
-        val digest: ExternalDigest = BouncyCastleDigest()
-
-//        CustomMakeSignature.signDetached(
+//    @Throws(GeneralSecurityException::class, IOException::class, DocumentException::class)
+//    fun sign(
+//        uri: Uri?,
+//        os: FileOutputStream?,
+//        chain: Array<X509Certificate>?,
+//        pk: ExternalSignature,
+////        digestAlgorithm: String?,
+////        provider: String?,
+//        subfilter: MakeSignature.CryptoStandard,
+//        signPage: Int,
+//        rec: Rectangle
+//    ){
+//        val reader = PdfReader(contentResolver.openInputStream(uri!!))
+//        val stamper = PdfStamper.createSignature(reader, os, '\u0000')
+//
+//        val appearance = stamper.signatureAppearance
+//        appearance.setVisibleSignature(rec, signPage, "sig")
+//        appearance.imageScale = -1f
+//
+//        val digest: ExternalDigest = BouncyCastleDigest()
+//
+////        CustomMakeSignature.signDetached(
+////            appearance,
+////            digest,
+////            pk,
+////            chain as Array<X509Certificate>,
+////            null,
+////            null,
+////            null,
+////            0,
+////            subfilter,
+////            null as SignaturePolicyIdentifier?
+////        )
+//
+//        MakeSignature.signDetached(
 //            appearance,
 //            digest,
 //            pk,
@@ -213,19 +271,17 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 //            subfilter,
 //            null as SignaturePolicyIdentifier?
 //        )
+//    }
 
-        MakeSignature.signDetached(
-            appearance,
-            digest,
-            pk,
-            chain as Array<X509Certificate>,
-            null,
-            null,
-            null,
-            0,
-            subfilter,
-            null as SignaturePolicyIdentifier?
-        )
+    private suspend fun guardarPath(name: String) {
+        dataStore.edit{ preferences ->
+            if(preferences[stringPreferencesKey("paths")].isNullOrEmpty()){
+                preferences[stringPreferencesKey("paths")] = name
+            }
+            else{
+                preferences[stringPreferencesKey("paths")] += ",$name"
+            }
+        }
     }
 
     // ---------------------------------------- DIALOG´S ---------------------------------------- //
@@ -325,13 +381,16 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         for (doc: String in docsSelected) {
             list += "\n\n- $doc"
         }
-        list += "\n\n\n\nSi esta de acuerdo, pulse en el boton 'Aceptar'.\n\nNota: Se aplicara la firma en la pagina 1 de cada documento."
+        list += "\n\n\n\nSi esta de acuerdo, pulse en el boton 'Aceptar'.\n\nNOTA: La firma se aplicará en la pagina 1 de cada documento."
         builder.setMessage(list)
 
         builder.apply {
             setPositiveButton("Aceptar") { dialog, which ->
-                firmar()
-                // TODO ALERTDIALOG Y VOLVER AL MENU DE INICIO
+                signVariousDocuments()
+
+                val i = Intent(applicationContext, MainActivity::class.java)
+                i.putExtra("docsFirmados", "true")
+                startActivity(i)
             }
             setNegativeButton("Cancelar") { dialog, which ->
                 dialog.dismiss()

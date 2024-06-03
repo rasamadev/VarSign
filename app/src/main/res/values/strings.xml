@@ -2,5 +2,6 @@
     <string name="app_name">VarSign</string>
     <string name="install_certificate">Instalar certificado</string>
     <string name="sign_documents">Firmar documento(s)</string>
+    <string name="signed_documents">Documentos firmados</string>
     <string name="image_description">Imagen descriptiva</string>
 </resources>

@@ -26,6 +26,7 @@ import android.provider.OpenableColumns
 import android.security.KeyChain
 import android.security.KeyChainAliasCallback
 import android.security.KeyChainException
+import android.text.InputType
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -36,6 +37,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.lifecycle.lifecycleScope
 import com.itextpdf.text.DocumentException
 import com.itextpdf.text.Rectangle
 import com.itextpdf.text.exceptions.InvalidPdfException
@@ -45,7 +49,10 @@ import com.itextpdf.text.pdf.security.BouncyCastleDigest
 import com.itextpdf.text.pdf.security.DigestAlgorithms
 import com.itextpdf.text.pdf.security.ExternalDigest
 import com.itextpdf.text.pdf.security.ExternalSignature
+import com.itextpdf.text.pdf.security.MakeSignature
 import com.itextpdf.text.pdf.security.MakeSignature.CryptoStandard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
 import org.spongycastle.jce.provider.BouncyCastleProvider
 import java.io.File
@@ -119,6 +126,14 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     /** Alias del certificado seleccionado */
     private lateinit var aliasCert: String
 
+    /** Lector del documento seleccionado */
+    private lateinit var pdfReader: PdfReader
+
+    /** Posible contraseña del documento a firmar */
+    private lateinit var passwordDoc: String
+
+//    val sharedPreferences: SharedPreferences = getSharedPreferences("docs", Context.MODE_PRIVATE)
+
     companion object {
         const val PICK_PDF_REQUEST_CODE = 123
     }
@@ -126,32 +141,39 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     val getPdf = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { uri ->
             try{
-                // GUARDAMOS EL NOMBRE Y RUTA DEL DOCUMENTO SELECCIONADO
+                // TODO COMPROBACION PDF CON CONTRASEÑA
                 docName = getFileName(uri) as String
-                docPath = getFilePath(uri.path) as String
-                println(docName)
-                println(docPath)
-                println("Uri.path:" + uri.path)
+                if(Utils.isPasswordProtected(contentResolver.openInputStream(uri))){
+                    dialogRequestPassword()
+                }
+                else{
+                    continueDocSelected(uri)
+                }
 
-                // RECOGEMOS EL NUMERO DE PAGINAS DEL DOCUMENTO SELECCIONADO
-                val inputStream = applicationContext.contentResolver.openInputStream(uri)
-                val pdfReader = PdfReader(inputStream)
-                docPages = pdfReader.numberOfPages
-
-                // SI EL DOCUMENTO SELECCIONADO ESTA CORRECTO, LO GUARDAMOS
-                docSeleccionado = uri
-
-                // ESTABLECEMOS EL NOMBRE EN EL EDITTEXT 'etNombreArchivo'
-                etNombreArchivo.setText(docName)
-
-                // MOSTRAMOS LOS TEXTOS Y EDITTEXT PARA INDICAR EN QUE PAGINA
-                // SE QUIERE APLICAR LA FIRMA
-                txtSignPage.text = "¿En que pagina quieres aplicar la firma?"
-                etNumPagDoc.visibility = View.VISIBLE
-                etNumPagDoc.setText("1")
-
-                // APLICARIA EL MAXLENGTH SEGUN LAS PAGS DEL DOC PERO NO SE PUEDE
-                txtNumPagsDoc.text = "Numero de paginas del documento: $docPages"
+//                // GUARDAMOS EL NOMBRE Y RUTA DEL DOCUMENTO SELECCIONADO
+//                docName = getFileName(uri) as String
+//                docPath = getFilePath(uri.path) as String
+//
+//                // RECOGEMOS EL NUMERO DE PAGINAS DEL DOCUMENTO SELECCIONADO
+//                val inputStream = applicationContext.contentResolver.openInputStream(uri)
+//                val pass = "qwerty1234.".toByteArray()
+//                val pdfReader = PdfReader(inputStream, pass)
+//                docPages = pdfReader.numberOfPages
+//
+//                // SI EL DOCUMENTO SELECCIONADO ESTA CORRECTO, LO GUARDAMOS
+//                docSeleccionado = uri
+//
+//                // ESTABLECEMOS EL NOMBRE EN EL EDITTEXT 'etNombreArchivo'
+//                etNombreArchivo.setText(docName)
+//
+//                // MOSTRAMOS LOS TEXTOS Y EDITTEXT PARA INDICAR EN QUE PAGINA
+//                // SE QUIERE APLICAR LA FIRMA
+//                txtSignPage.text = "¿En que pagina quieres aplicar la firma?"
+//                etNumPagDoc.visibility = View.VISIBLE
+//                etNumPagDoc.setText("1")
+//
+//                // APLICARIA EL MAXLENGTH SEGUN LAS PAGS DEL DOC PERO NO SE PUEDE
+//                txtNumPagsDoc.text = "Numero de paginas del documento: $docPages"
             }
             catch (e: InvalidPdfException) {
                 Utils.mostrarError(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
@@ -193,6 +215,8 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 //                startActivityForResult(intent, PICK_PDF_REQUEST_CODE)
             }
             R.id.btnFirmar -> {
+                var comprobationFileExistsInVarSign: File = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
+
                 // SI NO SE HA SELECCIONADO NINGUN DOCUMENTO
                 if(docSeleccionado == null){
                     Utils.mostrarError(this, "¡No has seleccionado un documento!")
@@ -203,17 +227,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                 else if(etNumPagDoc.text.toString() == "" || Integer.parseInt(etNumPagDoc.text.toString()) < 1 || Integer.parseInt(etNumPagDoc.text.toString()) > docPages){
                     Utils.mostrarError(this, "Por favor, establece un numero de pagina correcto.")
                 }
+                else if(comprobationFileExistsInVarSign.exists()){
+                    dialogDocumentAlreadyExists()
+                }
                 else{
-                    idLugarFirma = rgLugarFirma.checkedRadioButtonId
-                    when (idLugarFirma) {
-                        rbArrIzq.id -> rec = Rectangle(20f, 800f, 130f, 830f)
-                        rbArrCen.id -> rec = Rectangle(243f, 800f, 353f, 830f)
-                        rbArrDer.id -> rec = Rectangle(466f, 800f, 576f, 830f)
-                        rbAbaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
-                        rbAbaCen.id -> rec = Rectangle(243f, 20f, 353f, 50f)
-                        rbAbaDer.id -> rec = Rectangle(466f, 20f, 576f, 50f)
-                    }
-                    dialogSignMethods()
+                    continueSign()
                 }
             }
         }
@@ -260,18 +278,58 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         return null
     }
 
-    private fun firmar() {
-        object : AsyncTask<Void?, Void?, Void?>() {
-            override fun onPostExecute(void: Void?) {
-//                super.onPostExecute(void)
-//                val i = Intent(applicationContext, DoneActivity::class.java)
-//                val f =
-//                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-//                        .toString() + "/sign_" + getFileName(mFileUri)
-//                i.putExtra("uri", f)
-//                startActivity(i)
+    private fun continueDocSelected(uri: Uri, passwordExists: Boolean = false) {
+        try{
+            // GUARDAMOS EL NOMBRE Y RUTA DEL DOCUMENTO SELECCIONADO
+//            docName = getFileName(uri) as String
+            docPath = getFilePath(uri.path) as String
+
+            if(passwordExists){
+                val pass = passwordDoc.toByteArray()
+                pdfReader = PdfReader(contentResolver.openInputStream(uri), pass)
+            }
+            else{
+                pdfReader = PdfReader(contentResolver.openInputStream(uri))
             }
 
+            // RECOGEMOS EL NUMERO DE PAGINAS DEL DOCUMENTO SELECCIONADO
+            docPages = pdfReader.numberOfPages
+
+            // SI EL DOCUMENTO SELECCIONADO ESTA CORRECTO, LO GUARDAMOS
+//        docSeleccionado = uri
+
+            // ESTABLECEMOS EL NOMBRE EN EL EDITTEXT 'etNombreArchivo'
+            etNombreArchivo.setText(docName)
+
+            // MOSTRAMOS LOS TEXTOS Y EDITTEXT PARA INDICAR EN QUE PAGINA
+            // SE QUIERE APLICAR LA FIRMA
+            txtSignPage.text = "¿En que pagina quieres aplicar la firma?"
+            etNumPagDoc.visibility = View.VISIBLE
+            etNumPagDoc.setText("1")
+
+            // APLICARIA EL MAXLENGTH SEGUN LAS PAGS DEL DOC PERO NO SE PUEDE
+            txtNumPagsDoc.text = "Numero de paginas del documento: $docPages"
+        }
+        catch (e: InvalidPdfException) {
+            Utils.mostrarError(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
+        }
+    }
+
+    private fun continueSign() {
+        idLugarFirma = rgLugarFirma.checkedRadioButtonId
+        when (idLugarFirma) {
+            rbArrIzq.id -> rec = Rectangle(20f, 800f, 130f, 830f)
+            rbArrCen.id -> rec = Rectangle(243f, 800f, 353f, 830f)
+            rbArrDer.id -> rec = Rectangle(466f, 800f, 576f, 830f)
+            rbAbaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
+            rbAbaCen.id -> rec = Rectangle(243f, 20f, 353f, 50f)
+            rbAbaDer.id -> rec = Rectangle(466f, 20f, 576f, 50f)
+        }
+        dialogSignMethods()
+    }
+
+    private fun signOneDocument() {
+        object : AsyncTask<Void?, Void?, Void?>() {
             override fun doInBackground(vararg params: Void?): Void? {
                 var privateKey: PrivateKey? = null
                 try {
@@ -281,6 +339,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
                     val provider = BouncyCastleProvider()
                     Security.addProvider(provider)
+
                     val pks: ExternalSignature = CustomPrivateKeySignature(
                         privateKey,
                         DigestAlgorithms.SHA256,
@@ -288,21 +347,52 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                     )
 
                     val tmp = File.createTempFile("eid", ".pdf", cacheDir)
+                    // TODO -- PENSAR: NO SE PUEDE APLICAR MAS DE UNA FIRMA?
+                    // TODO -- PENSAR: DOCUMENTOS HORIZONTALES??
                     // TODO (HECHO?) -- PENSAR: LO DEJO EN LA CARPETA DOCUMENTOS??
 //                    val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")
-                    val file = File("/sdcard/VarSign/", "firmado_$docName")
+                    val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
+//                    val file = File("/sdcard/VarSign/", "firmado_$docName")
                     val fos = FileOutputStream(file)
-                    sign(
-                        docSeleccionado,
-                        fos,
-                        chain,
+
+                    // Creating the reader and the stamper
+//                    val reader = PdfReader(contentResolver.openInputStream(docSeleccionado!!))
+//                    val stamper = PdfStamper.createSignature(reader, fos, '\u0000')
+                    val stamper = PdfStamper.createSignature(pdfReader, fos, '\u0000')
+
+                    // Creating the appearance
+                    val appearance = stamper.signatureAppearance
+                    appearance.setVisibleSignature(rec, Integer.parseInt(etNumPagDoc.text.toString()), "sig")
+                    appearance.imageScale = -1f
+
+                    // Creating the signature
+                    val digest: ExternalDigest = BouncyCastleDigest()
+
+                    // Sign the document
+                    MakeSignature.signDetached(
+                        appearance,
+                        digest,
                         pks,
-                        DigestAlgorithms.SHA256,
-                        provider.getName(),
+                        chain as Array<X509Certificate>,
+                        null,
+                        null,
+                        null,
+                        0,
                         CryptoStandard.CADES,
-                        Integer.parseInt(etNumPagDoc.text.toString()),
-                        rec
+                        null as SignaturePolicyIdentifier?
                     )
+
+//                    sign(
+//                        docSeleccionado,
+//                        fos,
+//                        chain,
+//                        pks,
+////                        DigestAlgorithms.SHA256,
+////                        provider.getName(),
+//                        CryptoStandard.CADES,
+//                        Integer.parseInt(etNumPagDoc.text.toString()),
+//                        rec
+//                    )
                 } catch (e: KeyChainException) {
                     e.printStackTrace()
                 } catch (e: InterruptedException) {
@@ -321,50 +411,89 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         }.execute()
     }
 
-    @Throws(GeneralSecurityException::class, IOException::class, DocumentException::class)
-    fun sign(
-        uri: Uri?,
-        os: FileOutputStream?,
-        chain: Array<X509Certificate>?,
-        pk: ExternalSignature,
-        digestAlgorithm: String?,
-        provider: String?,
-        subfilter: CryptoStandard,
-        signPage: Int,
-        rec: Rectangle
-    ){
-        // Creating the reader and the stamper
-        val reader = PdfReader(contentResolver.openInputStream(uri!!))
-        val stamper = PdfStamper.createSignature(reader, os, '\u0000')
-        // Creating the appearance
-        val appearance = stamper.signatureAppearance
-//         appearance.setReason(reason);
-//         appearance.setLocation(location);
-
-
-        // TODO -- PENSAR: NO SE PUEDE APLICAR MAS DE UNA FIRMA??
-        appearance.setVisibleSignature(rec, signPage, "sig")
-        // appearance.setImage(Image.getInstance(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/image.png"));
-        appearance.imageScale = -1f
-
-        // Creating the signature
-        val digest: ExternalDigest = BouncyCastleDigest()
-
-        CustomMakeSignature.signDetached(
-            appearance,
-            digest,
-            pk,
-            chain as Array<X509Certificate>,
-            null,
-            null,
-            null,
-            0,
-            subfilter,
-            null as SignaturePolicyIdentifier?
-        )
-    }
+//    @Throws(GeneralSecurityException::class, IOException::class, DocumentException::class)
+//    fun sign(
+//        uri: Uri?,
+//        os: FileOutputStream?,
+//        chain: Array<X509Certificate>?,
+//        pk: ExternalSignature,
+////        digestAlgorithm: String?,
+////        provider: String?,
+//        subfilter: CryptoStandard,
+//        signPage: Int,
+//        rec: Rectangle
+//    ){
+//        // Creating the reader and the stamper
+//        val reader = PdfReader(contentResolver.openInputStream(uri!!))
+//        val stamper = PdfStamper.createSignature(reader, os, '\u0000')
+//        // Creating the appearance
+//        val appearance = stamper.signatureAppearance
+////         appearance.setReason(reason);
+////         appearance.setLocation(location);
+//
+//        appearance.setVisibleSignature(rec, signPage, "sig")
+//        // appearance.setImage(Image.getInstance(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/image.png"));
+//        appearance.imageScale = -1f
+//
+//        // Creating the signature
+//        val digest: ExternalDigest = BouncyCastleDigest()
+//
+//        MakeSignature.signDetached(
+//            appearance,
+//            digest,
+//            pk,
+//            chain as Array<X509Certificate>,
+//            null,
+//            null,
+//            null,
+//            0,
+//            subfilter,
+//            null as SignaturePolicyIdentifier?
+//        )
+//    }
 
     // ---------------------------------------- DIALOG´S ---------------------------------------- //
+
+    private fun dialogRequestPassword() {
+        // Crear el EditText
+        val editText = EditText(this)
+        editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+//        editText.hint = "Introduce tu texto aquí"
+
+        // Crear el AlertDialog
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("DOCUMENTO PROTEGIDO")
+            .setMessage("Introduce la contraseña:")
+            .setView(editText)
+
+            .setPositiveButton("Aceptar") { dialogInterface, i ->
+                val inputText = editText.text.toString()
+                Toast.makeText(this, "Texto ingresado: $inputText", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancelar") { dialogInterface, i ->
+                dialogInterface.dismiss()
+            }
+            .create()
+
+        dialog.show()
+    }
+
+    private fun dialogDocumentAlreadyExists() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("ADVERTENCIA")
+        builder.setMessage("Se ha encontrado un documento con el mismo nombre en la carpeta 'VarSign'.\n\nSi continua, ese documento se sobreescribirá por el documento actual, ¿esta seguro?")
+
+        builder.setPositiveButton("Aceptar") { dialog, which ->
+            continueSign()
+        }
+
+        builder.setNegativeButton("Cancelar") { dialog, which ->
+            dialog.dismiss()
+        }
+
+        val dialog = builder.create()
+        dialog.show()
+    }
 
     private fun dialogSignMethods() {
         val builder = AlertDialog.Builder(this)
@@ -425,7 +554,14 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         builder.setPositiveButton("Aceptar") { dialog, which ->
             val h = Handler(Looper.getMainLooper())
             h.post {
-                firmar()
+                signOneDocument()
+
+                // RESTABLECEMOS LOS ELEMENTOS DE LA PAGINA A SU ESTADO PRIMARIO
+                etNombreArchivo.setText("")
+                txtSignPage.text = "No se ha seleccionado un documento"
+                etNumPagDoc.visibility = View.INVISIBLE
+                txtNumPagsDoc.text = ""
+
                 dialogDocSigned()
             }
         }
@@ -439,12 +575,22 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun dialogDocSigned() {
+
+        lifecycleScope.launch(Dispatchers.IO){
+            guardarPath("firmado_$docName")
+        }
+
         val builder = AlertDialog.Builder(this)
         builder.setTitle("DOCUMENTO FIRMADO CON EXITO")
         builder.setMessage("Se ha guardado en la carpeta 'VarSign' del dispositivo.\n\n¿Que quiere hacer?")
+//        builder.setMessage("Se ha guardado en la carpeta 'Documentos' del dispositivo.\n\n¿Que quiere hacer?")
 
         builder.setPositiveButton("Abrir documento") { dialog, which ->
-            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")
+            docSeleccionado = null
+
+//            val file = File("/sdcard/VarSign/", "firmado_$docName")
+//            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")
+            val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
 //            val uri: Uri = Uri.fromFile(file)
             val uri: Uri = FileProvider.getUriForFile(applicationContext, "com.rasamadev.varsign.provider", file)
             val intent = Intent(Intent.ACTION_VIEW)
@@ -459,6 +605,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         }
 
         builder.setNeutralButton("Cerrar") {dialog, which ->
+            docSeleccionado = null
             dialog.dismiss()
         }
 
@@ -471,7 +618,18 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         dialog.show()
     }
 
-/**
+    private suspend fun guardarPath(name: String) {
+        dataStore.edit{ preferences ->
+            if(preferences[stringPreferencesKey("paths")].isNullOrEmpty()){
+                preferences[stringPreferencesKey("paths")] = name
+            }
+            else{
+                preferences[stringPreferencesKey("paths")] += ",$name"
+            }
+        }
+    }
+
+    /**
 //    private fun firmarnew() {
 //        val privateKey = KeyChain.getPrivateKey(this@SingleDocActivity, aliasCert)
 //        val certChain = KeyChain.getCertificateChain(this@SingleDocActivity, aliasCert) as Array<X509Certificate>
