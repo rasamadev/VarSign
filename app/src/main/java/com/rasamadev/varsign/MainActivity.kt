@@ -82,21 +82,15 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     /** Codigo de solicitud de permisos de escritura */
     private val REQUEST_CODE_PERMISSIONS = 123
 
+    /** String que recoge el historial de documentos firmados del DataStore
+     * sdh = SignedDocumentsHistoric
+     */
     private lateinit var sdh: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        // Configuracion de elementos del layout
-        btnInstalarCertificado = findViewById<Button>(R.id.btnInstalarCertificado)
-        btnFirmarDocs = findViewById<Button>(R.id.btnFirmarDocs)
-        btnDocsFirmados = findViewById<Button>(R.id.btnDocsFirmados)
-
-        // Configurar los listeners de clic
-        btnInstalarCertificado.setOnClickListener(this)
-        btnFirmarDocs.setOnClickListener(this)
-        btnDocsFirmados.setOnClickListener(this)
+        initView()
 
         // COMPROBACION DE SI EL DISPOSITIVO TIENE CONFIGURADO ALGUN PATRON
         checkSecurityConfig()
@@ -125,6 +119,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
 
         // TODO (HECHO?) -- ORDENAR MEJOR CLASES
+    }
+
+    private fun initView() {
+        btnInstalarCertificado = findViewById<Button>(R.id.btnInstalarCertificado)
+        btnFirmarDocs = findViewById<Button>(R.id.btnFirmarDocs)
+        btnDocsFirmados = findViewById<Button>(R.id.btnDocsFirmados)
+
+        btnInstalarCertificado.setOnClickListener(this)
+        btnFirmarDocs.setOnClickListener(this)
+        btnDocsFirmados.setOnClickListener(this)
     }
 
     private fun getPaths() = dataStore.data.map { preferences ->

@@ -30,9 +30,7 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_signed_docs_historic)
-
-        recyclerView = findViewById(R.id.rvSignedDocsHistoric)
-        toolBarSignedDocs = findViewById(R.id.toolBarSignedDocs)
+        initView()
 
 //        lifecycleScope.launch(Dispatchers.IO) {
 //            getPaths().collect {
@@ -43,14 +41,19 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
 //            }
 //        }
 
-        setSupportActionBar(toolBarSignedDocs)
-
         signedDocsHistoric = intent.getStringExtra("SignedDocsHistoric") as String
 
-        splitSDH = signedDocsHistoric.split(",").map { it.trim() }
+        splitSDH = signedDocsHistoric.split(",").map { it.trim() }.reversed()
 
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = AdapterSignedDocsHistoric(splitSDH, this)
+    }
+
+    private fun initView() {
+        recyclerView = findViewById(R.id.rvSignedDocsHistoric)
+        toolBarSignedDocs = findViewById(R.id.toolBarSignedDocs)
+
+        setSupportActionBar(toolBarSignedDocs)
     }
 
     override fun onItemClick(position: Int) {
@@ -67,7 +70,7 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
                 startActivity(intent)
             }
             else{
-                Utils.mostrarError(this, "No se ha encontrado el documento seleccionado en la carpeta 'VarSign'. Es posible que se haya eliminado o movido a otra carpeta")
+                Utils.mostrarError(this, "No se ha encontrado el documento seleccionado en la carpeta 'VarSign'. Es posible que se haya eliminado o movido a otra carpeta.")
             }
         } catch (e: ActivityNotFoundException) {
             // Manejar la excepción si no se encuentra una aplicación para abrir PDFs

@@ -52,7 +52,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
     // ELEMENTOS PANTALLA
 
-
+    /** toolbar "Top Bar" */
     private lateinit var toolBarVariousDocs: MaterialToolbar
 
     /** Lista de documentos a seleccionar para su posterior firma */
@@ -81,19 +81,13 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
     /** Nombre del directorio seleccionado */
     private lateinit var directorySelected: String
 
+    /** String que guardara la posicion de la firma */
+    private lateinit var signPosition: String
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_variousdoclist)
-
-        toolBarVariousDocs = findViewById(R.id.toolBarVariousDocs)
-        cbDocsContainer = findViewById<LinearLayout>(R.id.cbDocsContainer)
-        btnCancelar = findViewById<Button>(R.id.btnCancelar)
-        btnAceptar = findViewById<Button>(R.id.btnAceptar)
-
-        btnCancelar.setOnClickListener(this)
-        btnAceptar.setOnClickListener(this)
-
-        setSupportActionBar(toolBarVariousDocs)
+        initView()
 
         val pdfFileNames = intent.getStringArrayListExtra("pdfFileNames")
         directorySelected = intent.getStringExtra("directorySelected") as String
@@ -108,6 +102,18 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         if(intent.getBooleanExtra("encryptedDocsFounded", true)){
             Utils.mostrarError(this, "Se han eliminado de la lista uno o varios documentos protegidos con contraseña.\n\nSi desea firmar esos documentos, por favor, hagalo mediante la opcion de firma de 'Un documento'")
         }
+    }
+
+    private fun initView() {
+        toolBarVariousDocs = findViewById(R.id.toolBarVariousDocs)
+        cbDocsContainer = findViewById<LinearLayout>(R.id.cbDocsContainer)
+        btnCancelar = findViewById<Button>(R.id.btnCancelar)
+        btnAceptar = findViewById<Button>(R.id.btnAceptar)
+
+        btnCancelar.setOnClickListener(this)
+        btnAceptar.setOnClickListener(this)
+
+        setSupportActionBar(toolBarVariousDocs)
     }
 
     override fun onClick(view: View?) {
@@ -184,6 +190,28 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
                         val reader = PdfReader(contentResolver.openInputStream(file!!))
                         val stamper = PdfStamper.createSignature(reader, fos, '\u0000')
+
+                        val rectangle: Rectangle = reader.getPageSizeWithRotation(1)
+                        if (rectangle.height >= rectangle.width){
+                            when (signPosition) {
+                                "arrIzq" -> rec = Rectangle(20f, 800f, 130f, 830f)
+                                "arrCen" -> rec = Rectangle(243f, 800f, 353f, 830f)
+                                "arrDer" -> rec = Rectangle(466f, 800f, 576f, 830f)
+                                "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
+                                "abaCen" -> rec = Rectangle(243f, 20f, 353f, 50f)
+                                "abaDer" -> rec = Rectangle(466f, 20f, 576f, 50f)
+                            }
+                        }
+                        else{
+                            when (signPosition) {
+                                "arrIzq" -> rec = Rectangle(20f, 570f, 130f, 600f)
+                                "arrCen" -> rec = Rectangle(360f, 570f, 470f, 600f)
+                                "arrDer" -> rec = Rectangle(690f, 570f, 800f, 600f)
+                                "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
+                                "abaCen" -> rec = Rectangle(360f, 20f, 470f, 50f)
+                                "abaDer" -> rec = Rectangle(690f, 20f, 800f, 50f)
+                            }
+                        }
 
                         val appearance = stamper.signatureAppearance
                         appearance.setVisibleSignature(rec, 1, "sig")
@@ -336,12 +364,12 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
             val selectedId = radioGroup.checkedRadioButtonId
             val selectedRadioButton = dialogView.findViewById<RadioButton>(selectedId)
             when (selectedRadioButton.id) {
-                arrIzq.id -> rec = Rectangle(20f, 800f, 130f, 830f)
-                arrCen.id -> rec = Rectangle(243f, 800f, 353f, 830f)
-                arrDer.id -> rec = Rectangle(466f, 800f, 576f, 830f)
-                abaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
-                abaCen.id -> rec = Rectangle(243f, 20f, 353f, 50f)
-                abaDer.id -> rec = Rectangle(466f, 20f, 576f, 50f)
+                arrIzq.id -> signPosition = "arrIzq"
+                arrCen.id -> signPosition = "arrCen"
+                arrDer.id -> signPosition = "arrDer"
+                abaIzq.id -> signPosition = "abaIzq"
+                abaCen.id -> signPosition = "abaCen"
+                abaDer.id -> signPosition = "abaDer"
             }
             dialogSignMethods()
         }

@@ -148,6 +148,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         uri?.let { uri ->
             try{
                 // COMPROBACION PDF CON CONTRASEÑA
+                // TODO SI LO QUITO, DA EXCEPCION EN EL CATCH DE LA LINEA 195, SI LO DEJO, SELECCIONO UN DOCUMENTO FIRMADO, CANCELO E INTENTO FIRMAR
                 docName = getFileName(uri) as String
                 if(Utils.isPasswordProtected(contentResolver.openInputStream(uri))){
                     dialogRequestPassword(uri)
@@ -186,10 +187,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                 // Y docSeleccionado = null PARA QUE, CUANDO PULSEMOS EN EL BOTON
                 // "FIRMAR DOCUMENTO", NO HAYA DOCUMENTO SELECCIONADO
                 docSeleccionado = null
-                etNombreArchivo.setText("")
-                txtSignPage.text = "No se ha seleccionado un documento"
-                etNumPagDoc.visibility = View.INVISIBLE
-                txtNumPagsDoc.text = ""
+                clearElements()
+//                etNombreArchivo.setText("")
+//                txtSignPage.text = "No se ha seleccionado un documento"
+//                etNumPagDoc.visibility = View.INVISIBLE
+//                txtNumPagsDoc.text = ""
 
                 Utils.mostrarError(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
             }
@@ -199,7 +201,10 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_singledoc)
+        initView()
+    }
 
+    private fun initView() {
         btnSelDoc = findViewById<Button>(R.id.btnSelDoc)
         btnFirmar = findViewById<Button>(R.id.btnFirmar)
         etNombreArchivo = findViewById<EditText>(R.id.etNombreArchivo)
@@ -261,6 +266,13 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 //            etNombreArchivo.setText(docName)
 //        }
 //    }
+
+    private fun clearElements() {
+        etNombreArchivo.setText("")
+        txtSignPage.text = "No se ha seleccionado un documento"
+        etNumPagDoc.visibility = View.INVISIBLE
+        txtNumPagsDoc.text = ""
+    }
 
     private fun getFileName(uri: Uri): String? {
         var fileName: String? = null
@@ -374,7 +386,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                     )
 
                     val tmp = File.createTempFile("eid", ".pdf", cacheDir)
-                    // TODO -- PENSAR: NO SE PUEDE APLICAR MAS DE UNA FIRMA?
+                    // TODO EXCEPCION PARA MAS DE UNA FIRMA
                     // TODO (HECHO?) -- PENSAR: LO DEJO EN LA CARPETA DOCUMENTOS??
 //                    val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$docName")
                     val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
@@ -483,7 +495,6 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     private fun dialogRequestPassword(uri: Uri) {
         val editText = EditText(this)
         editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-//        editText.hint = "Introduce tu texto aquí"
 
         val dialog = AlertDialog.Builder(this)
             .setTitle("DOCUMENTO PROTEGIDO")
@@ -501,6 +512,8 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
             }
             .setNegativeButton("Cancelar") { dialogInterface, i ->
+                docSeleccionado = null
+                clearElements()
                 dialogInterface.dismiss()
             }
             .create()
@@ -589,10 +602,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                 signOneDocument()
 
                 // RESTABLECEMOS LOS ELEMENTOS DE LA PAGINA A SU ESTADO PRIMARIO
-                etNombreArchivo.setText("")
-                txtSignPage.text = "No se ha seleccionado un documento"
-                etNumPagDoc.visibility = View.INVISIBLE
-                txtNumPagsDoc.text = ""
+                clearElements()
+//                etNombreArchivo.setText("")
+//                txtSignPage.text = "No se ha seleccionado un documento"
+//                etNumPagDoc.visibility = View.INVISIBLE
+//                txtNumPagsDoc.text = ""
 
                 dialogDocSigned()
             }
