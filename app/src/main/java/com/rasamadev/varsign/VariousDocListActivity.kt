@@ -100,7 +100,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
             cbDocsContainer.addView(checkBox)
         }
         if(intent.getBooleanExtra("encryptedDocsFounded", true)){
-            Utils.mostrarError(this, "Se han eliminado de la lista uno o varios documentos protegidos con contraseña.\n\nSi desea firmar esos documentos, por favor, hagalo mediante la opcion de firma de 'Un documento'")
+            Utils.mostrarError(this, "Se han eliminado de la lista uno o varios documentos protegidos con contraseña.\n\nSi desea firmar esos documentos, por favor, hagalo mediante la opcion de firma de 'Un documento'.")
         }
     }
 

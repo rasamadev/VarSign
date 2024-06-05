@@ -95,7 +95,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // COMPROBACION DE SI EL DISPOSITIVO TIENE CONFIGURADO ALGUN PATRON
         checkSecurityConfig()
         // COMPROBACION DE SI LA APLICACION CUENTA CON PERMISOS DE ESCRITURA
-        checkPermissions()
+//        checkPermissions()
 
         // SI EL USUARIO PULSA EN EL BOTON DE ATRAS DEL DISPOSITIVO
         // SE ABRIRA UN DIALOGO DE CONFIRMACION PARA SALIR DE LA APP
@@ -144,7 +144,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
         else{
             checkSecurityConfig()
-            checkPermissions()
+//            checkPermissions()
         }
     }
 
@@ -269,6 +269,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         if (!keyguardManager.isKeyguardSecure) {
             dialogSecurityConfig()
+        }
+        else{
+            checkPermissions()
         }
     }
 
