@@ -13,18 +13,26 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import java.io.File
 
+/**
+ * CLASE QUE MUESTRA LA PANTALLA DEL HISTORICO DE DOCUMENTOS FIRMADOS
+ * POR EL USUARIO Y CONTROLA CUANDO SE PULSA EN UNO
+ */
 class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItemClickListener {
 
     // ELEMENTOS PANTALLA
 
-    private lateinit var recyclerView: RecyclerView
+    /** Lista de documentos firmados */
+    private lateinit var rvSignedDocsHistoric: RecyclerView
 
+    /** toolbar 'Top Bar' */
     private lateinit var toolBarSignedDocs: MaterialToolbar
 
     // ------------------------------------------------------
 
+    /** String del historico de documentos firmados */
     private lateinit var signedDocsHistoric: String
 
+    /** List de los distintos documentos spliteada */
     private lateinit var splitSDH: List<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,35 +40,43 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
         setContentView(R.layout.activity_signed_docs_historic)
         initView()
 
-//        lifecycleScope.launch(Dispatchers.IO) {
-//            getPaths().collect {
-//                withContext(Dispatchers.Main){
-//                    println("LAUNCH: ${it.path}")
-//                    signedDocsHistoric = it.path
-//                }
-//            }
-//        }
-
+        /**
+         * RECOGEMOS EL EXTRA DE LA ACTIVITY
+         * (String de historico de documentos firmados)
+         */
         signedDocsHistoric = intent.getStringExtra("SignedDocsHistoric") as String
 
+        /** LO SPLITEAMOS Y LO APLICAMOS AL RECYCLERVIEW DE LA PANTALLA */
         splitSDH = signedDocsHistoric.split(",").map { it.trim() }.reversed()
-
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        recyclerView.adapter = AdapterSignedDocsHistoric(splitSDH, this)
+        rvSignedDocsHistoric.layoutManager = LinearLayoutManager(this)
+        rvSignedDocsHistoric.adapter = AdapterSignedDocsHistoric(splitSDH, this)
     }
 
+    /**
+     * METODO QUE INICIALIZA LOS ELEMENTOS DE LA PANTALLA
+     * Y ESTABLECE LA TOOLBAR
+     */
     private fun initView() {
-        recyclerView = findViewById(R.id.rvSignedDocsHistoric)
+        rvSignedDocsHistoric = findViewById(R.id.rvSignedDocsHistoric)
         toolBarSignedDocs = findViewById(R.id.toolBarSignedDocs)
 
         setSupportActionBar(toolBarSignedDocs)
     }
 
+    /**
+     * METODO DE CONFIGURACION DE LA PULSACION DE UN DOCUMENTO DE LA LISTA
+     */
     override fun onItemClick(position: Int) {
         try {
-            val item = (recyclerView.adapter as AdapterSignedDocsHistoric).itemList[position]
-            val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), item.substringBefore("?"))
+            /** RECOGEMOS EL ITEM SELECCIONADO */
+            val item = (rvSignedDocsHistoric.adapter as AdapterSignedDocsHistoric).itemList[position]
 
+            /**
+             * COMPROBAMOS SI EXISTE EL DOCUMENTO DEL ITEM SELECCIONADO
+             * - SI EXISTE, LO ABRIMOS
+             * - SI NO, SE MUESTRA UN MENSAJE DE ERROR INDICANDO QUE NO EXISTE
+             */
+            val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), item.substringBefore("?"))
             if(file.exists()){
                 val uri: Uri = FileProvider.getUriForFile(applicationContext, "com.rasamadev.varsign.provider", file)
 
@@ -73,14 +89,7 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
                 Utils.mostrarError(this, "No se ha encontrado el documento seleccionado en la carpeta 'VarSign'. Es posible que se haya eliminado o movido a otra carpeta.")
             }
         } catch (e: ActivityNotFoundException) {
-            // Manejar la excepción si no se encuentra una aplicación para abrir PDFs
-            Toast.makeText(this, "No se ha encontrado ninguna aplicacion.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No se ha encontrado ninguna aplicacion que pueda realizar esta accion.", Toast.LENGTH_SHORT).show()
         }
     }
-
-//    private fun getPaths() = dataStore.data.map { preferences ->
-//        ModeloDatos(
-//            path = preferences[stringPreferencesKey("paths")].orEmpty()
-//        )
-//    }
 }

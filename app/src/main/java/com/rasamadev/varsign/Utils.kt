@@ -7,8 +7,18 @@ import com.itextpdf.text.pdf.PdfReader
 
 import java.io.InputStream
 
+/**
+ * CLASE QUE CONTIENE METODOS DE AYUDA QUE SE PUEDEN LLAMAR DIRECTAMENTE
+ * DESDE EL NOMBRE DE LA CLASE, SIN INSTANCIAR UN OBJETO.
+ * SON SIMILARES A LOS METODOS ESTATICOS DE JAVA
+ */
 class Utils {
     companion object {
+
+        /**
+         * METODO QUE MUESTRA UN ALERTDIALOG DE ADVERTENCIA/ERROR
+         * CON UN MENSAJE PERSONALIZADO
+         */
         fun mostrarError(context: Context, message: String) {
             val builder = AlertDialog.Builder(context)
             builder.setMessage(message)
@@ -18,6 +28,12 @@ class Utils {
             builder.show()
         }
 
+        /**
+         * METODO QUE COMPRUEBA SI UN DOCUMENTO PDF ESTA PROTEGIDO
+         * POR CONTRASEÑA.
+         *
+         * @return true si tiene contraseña, false si no la tiene.
+         */
         fun isPasswordProtected(ins: InputStream?): Boolean {
             return try {
                 val p = PdfReader(ins)
@@ -27,7 +43,13 @@ class Utils {
             }
         }
 
-        fun IsPasswordValid(ins: InputStream?, password: ByteArray): Boolean {
+        /**
+         * METODO QUE COMPRUEBA SI LA CONTRASEÑA INTRODUCIDA PARA
+         * UN DOCUMENTO ES VALIDA.
+         *
+         * @return true si es correcta, false si es incorrecta
+         */
+        fun isPasswordValid(ins: InputStream?, password: ByteArray): Boolean {
             return try {
                 val pdfReader = PdfReader(ins, password);
                 true

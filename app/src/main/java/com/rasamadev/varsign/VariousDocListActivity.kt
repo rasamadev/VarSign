@@ -31,6 +31,7 @@ import com.itextpdf.text.pdf.security.DigestAlgorithms
 import com.itextpdf.text.pdf.security.ExternalDigest
 import com.itextpdf.text.pdf.security.ExternalSignature
 import com.itextpdf.text.pdf.security.MakeSignature
+import com.itextpdf.text.pdf.security.PrivateKeySignature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
@@ -48,6 +49,12 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+/**
+ * CLASE QUE CONTROLA EL PROCESO DE FIRMADO DE VARIOS DOCUMENTOS
+ * MOSTRANDO UNA PANTALLA DONDE SELECCIONAR LOS DOCUMENTOS QUE
+ * CONTIENE LA CARPETA QUE HAYAMOS SELECCIONADO Y ELIGIENDO CUALES
+ * QUEREMOS FIRMAR
+ */
 class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
     // ELEMENTOS PANTALLA
@@ -69,9 +76,6 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
     /** Coordenadas del rectangulo de la firma */
     private lateinit var rec: Rectangle
 
-//    /** Ruta del directorio seleccionado */
-//    private lateinit var path: String
-
     /** Lista de documentos seleccionados para firmar */
     private lateinit var docsSelected: MutableList<String>
 
@@ -89,8 +93,15 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         setContentView(R.layout.activity_variousdoclist)
         initView()
 
+        /** RECOGEMOS LOS EXTRAS DE LA ACTIVITY */
         val pdfFileNames = intent.getStringArrayListExtra("pdfFileNames")
         directorySelected = intent.getStringExtra("directorySelected") as String
+        val edf = intent.getBooleanExtra("encryptedDocsFounded", true)
+
+        /**
+         * POR CADA DOCUMENTO QUE CONTENGA EL DIRECTORIO SELECCIONADO
+         * CARGAMOS UN CHECKBOX CON EL NOMBRE DEL DOCUMENTO
+         */
         pdfFileNames?.forEach { fileName ->
             val checkBox = CheckBox(this).apply {
                 text = fileName
@@ -99,11 +110,17 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
             }
             cbDocsContainer.addView(checkBox)
         }
-        if(intent.getBooleanExtra("encryptedDocsFounded", true)){
+
+        /** SI EL DIRECTORIO SELECCIONADO CONTIENE ARCHIVOS PROTEGIDOS CON CONTRASEÑA */
+        if(edf){
             Utils.mostrarError(this, "Se han eliminado de la lista uno o varios documentos protegidos con contraseña.\n\nSi desea firmar esos documentos, por favor, hagalo mediante la opcion de firma de 'Un documento'.")
         }
     }
 
+    /**
+     * METODO QUE INICIALIZA LOS ELEMENTOS DE LA PANTALLA, LOS
+     * LISTENER DE LOS BOTONES Y ESTABLECE LA TOOLBAR
+     */
     private fun initView() {
         toolBarVariousDocs = findViewById(R.id.toolBarVariousDocs)
         cbDocsContainer = findViewById<LinearLayout>(R.id.cbDocsContainer)
@@ -116,12 +133,17 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         setSupportActionBar(toolBarVariousDocs)
     }
 
+    /**
+     * METODO DE CONFIGURACION DE LOS BOTONES DE LA PANTALLA Y SUS ACCIONES
+     */
     override fun onClick(view: View?) {
         when (view?.id) {
             R.id.btnCancelar -> {
+                /** VOLVEMOS AL MENU DE INICIO */
                 onBackPressed()
             }
             R.id.btnAceptar -> {
+                /** RECOGEMOS EN UNA mutableList LOS DOCUMENTOS SELECCIONADOS */
                 docsSelected = mutableListOf<String>()
                 for (i in 0 until cbDocsContainer.childCount) {
                     val child = cbDocsContainer.getChildAt(i)
@@ -130,6 +152,10 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                     }
                 }
 
+                /**
+                 * COMPROBAMOS LOS ARCHIVOS 'SIMILARES' EXISTENTES EN LA
+                 * CARPETA 'VarSign'
+                 */
                 var docsFounded: String = ""
                 for (i in 0 until docsSelected.size) {
                     val f = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_${docsSelected[i]}")
@@ -138,10 +164,14 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                     }
                 }
 
-                // SI NO SE HA SELECCIONADO NINGUN DOCUMENTO
+                /** SI NO SE HA SELECCIONADO NINGUN DOCUMENTO */
                 if (docsSelected.isEmpty()) {
                     Utils.mostrarError(this, "¡Selecciona al menos un documento!")
                 }
+                /**
+                 * SI SE HAN ENCONTRADO ARCHIVOS SIMILARES
+                 * (SE MUESTRA MENSAJE DE ADVERTENCIA)
+                 */
                 else if(docsFounded != ""){
                     dialogDocumentsAlreadyExists(docsFounded)
                 }
@@ -153,44 +183,48 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
+    /**
+     * METODO QUE APLICA LA FIRMA A LOS DOCUMENTOS SELECCIONADOS
+     */
     private fun signVariousDocuments() {
         object : AsyncTask<Void?, Void?, Void?>() {
             override fun doInBackground(vararg params: Void?): Void? {
                 var privateKey: PrivateKey? = null
                 try {
+                    /** RECOGEMOS LA CLAVE PRIVADA Y EL CHAIN DEL CERTIFICADO SELECCIONADO */
                     privateKey = KeyChain.getPrivateKey(applicationContext, aliasCert)
                     val keyFactory = KeyFactory.getInstance(privateKey!!.algorithm, "AndroidKeyStore")
                     val chain: Array<X509Certificate>? = KeyChain.getCertificateChain(applicationContext, aliasCert)
 
-                    val provider = BouncyCastleProvider()
-                    Security.addProvider(provider)
-
-                    val pks: ExternalSignature = CustomPrivateKeySignature(
+                    /** CREAMOS UNA 'ExternalSignature' CON LA CLAVE PRIVADA Y LA FUNCION HASH SHA-256 */
+                    val pks: ExternalSignature = PrivateKeySignature(
                         privateKey,
                         DigestAlgorithms.SHA256,
-                        provider.getName()
+                        null
                     )
-//                    val pks: ExternalSignature = PrivateKeySignature(
-//                        privateKey,
-//                        DigestAlgorithms.SHA256,
-//                        provider.getName()
-//                    )
 
-                    val tmp = File.createTempFile("eid", ".pdf", cacheDir)
+                    /** APLICAMOS LA FIRMA A CADA DOCUMENTO SELECCIONADO */
                     for(doc: String in docsSelected){
-//                        val file = Uri.fromFile(File("content://com.android.externalstorage.documents" + directoryPath, doc))
-//                        val file = Uri.fromFile(File("/sdcard/$directorySelected/$doc"))
+                        /**
+                         * CARGAMOS EL ARCHIVO Y ESPECIFICAMOS DONDE IRA
+                         * GUARDADO EL DOCUMENTO FIRMADO (Carpeta 'VarSign')
+                         */
                         val file = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(directorySelected), doc))
-                        // TODO (HECHO?) COMPROBANTE SI EL DIRECTORIO DOCUMENTS NO EXISTE, A CARPETA DESCARGAS?
-//                        val filesigned = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "firmado_$doc")
                         val filesigned = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$doc")
-//                        val filesigned = File(Environment.getExternalStoragePublicDirectory(directorySelected), "firmado_$doc")
-//                        val filesigned = File("/sdcard/VarSign/", "firmado_$doc")
                         val fos = FileOutputStream(filesigned)
 
+                        /**
+                         * CARGAMOS EL DOCUMENTO A PARTIR DEL ARCHIVO Y
+                         * LE APLICAMOS LA FIRMA VACIA
+                         */
                         val reader = PdfReader(contentResolver.openInputStream(file!!))
                         val stamper = PdfStamper.createSignature(reader, fos, '\u0000')
 
+                        /**
+                         * CALCULAMOS LA ORIENTACION DE LA PAGINA A FIRMAR
+                         * PARA ESTABLECER LAS COORDENADAS DE LA POSICION
+                         * DE LA FIRMA SELECCIONADA
+                         */
                         val rectangle: Rectangle = reader.getPageSizeWithRotation(1)
                         if (rectangle.height >= rectangle.width){
                             when (signPosition) {
@@ -213,12 +247,18 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                             }
                         }
 
+                        /** APLICAMOS LA FIRMA EN LA POSICION Y PAGINA INDICADAS ANTERIORMENTE */
                         val appearance = stamper.signatureAppearance
                         appearance.setVisibleSignature(rec, 1, "sig")
                         appearance.imageScale = -1f
 
+                        /**
+                         * UTILIZAMOS UN DIGEST PROPORCIONADO POR BouncyCastle QUE UTILIZA SUS METODOS
+                         * PARA CALCULAR EL HASH DEL DOCUMENTO
+                         */
                         val digest: ExternalDigest = BouncyCastleDigest()
 
+                        /** FIRMAMOS EL DOCUMENTO EN FORMATO 'CAdES' */
                         MakeSignature.signDetached(
                             appearance,
                             digest,
@@ -232,24 +272,16 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                             null as SignaturePolicyIdentifier?
                         )
 
+                        /**
+                         * GUARDAMOS EN EL DATASTORE DE LA APLICACION EL NOMBRE DEL DOCUMENTO
+                         * FIRMADO JUNTO CON LA FECHA Y HORA DE LA FIRMA, AMBOS DATOS SEPARADOS
+                         * POR UN '?' (PARA DESPUES SPLITEARLO MEDIANTE ESE SEPARADOR)
+                         */
                         val calendar = Calendar.getInstance()
                         val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
-
                         lifecycleScope.launch(Dispatchers.IO){
                             guardarPath("firmado_$doc?${dateFormat.format(calendar.time)}")
                         }
-
-//                        sign(
-//                            file,
-//                            fos,
-//                            chain,
-//                            pks,
-////                            DigestAlgorithms.SHA256,
-////                            provider.getName(),
-//                            MakeSignature.CryptoStandard.CADES,
-//                            1,
-//                            rec
-//                        )
                     }
                 } catch (e: KeyChainException) {
                     e.printStackTrace()
@@ -269,54 +301,12 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         }.execute()
     }
 
-//    @Throws(GeneralSecurityException::class, IOException::class, DocumentException::class)
-//    fun sign(
-//        uri: Uri?,
-//        os: FileOutputStream?,
-//        chain: Array<X509Certificate>?,
-//        pk: ExternalSignature,
-////        digestAlgorithm: String?,
-////        provider: String?,
-//        subfilter: MakeSignature.CryptoStandard,
-//        signPage: Int,
-//        rec: Rectangle
-//    ){
-//        val reader = PdfReader(contentResolver.openInputStream(uri!!))
-//        val stamper = PdfStamper.createSignature(reader, os, '\u0000')
-//
-//        val appearance = stamper.signatureAppearance
-//        appearance.setVisibleSignature(rec, signPage, "sig")
-//        appearance.imageScale = -1f
-//
-//        val digest: ExternalDigest = BouncyCastleDigest()
-//
-////        CustomMakeSignature.signDetached(
-////            appearance,
-////            digest,
-////            pk,
-////            chain as Array<X509Certificate>,
-////            null,
-////            null,
-////            null,
-////            0,
-////            subfilter,
-////            null as SignaturePolicyIdentifier?
-////        )
-//
-//        MakeSignature.signDetached(
-//            appearance,
-//            digest,
-//            pk,
-//            chain as Array<X509Certificate>,
-//            null,
-//            null,
-//            null,
-//            0,
-//            subfilter,
-//            null as SignaturePolicyIdentifier?
-//        )
-//    }
-
+    /**
+     * METODO QUE GUARDA EN DATASTORE LA INFORMACION DEL DOCUMENTO FIRMADO
+     *
+     * SI NO ES EL PRIMER DOCUMENTO FIRMADO, GUARDA LA INFORMACION CON UNA
+     * COMA DELANTE (PARA QUE SEA SPLITEADA DESPUES), EN CASO CONTRARIO, SIN ELLA
+     */
     private suspend fun guardarPath(name: String) {
         dataStore.edit{ preferences ->
             if(preferences[stringPreferencesKey("paths")].isNullOrEmpty()){
@@ -330,6 +320,10 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
 
     // ---------------------------------------- DIALOG´S ---------------------------------------- //
 
+    /**
+     * ALERTDIALOG DE ADVERTENCIA QUE SE MUESTRA CUANDO SE ENCUENTRAN
+     * UNO O MAS ARCHIVOS YA FIRMADOS CON EL MISMO NOMBRE EN LA CARPETA 'VarSign'
+     */
     private fun dialogDocumentsAlreadyExists(docsFounded: String) {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")
@@ -346,6 +340,10 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         builder.create().show()
     }
 
+    /**
+     * ALERTDIALOG QUE MUESTRA UN MENU DE SEIS OPCIONES PARA ESTABLECER
+     * LA POSICION DE LA FIRMA EN LOS DOCUMENTOS
+     */
     private fun dialogSignPosition() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_variousdoc_signposition, null)
         val radioGroup = dialogView.findViewById<RadioGroup>(R.id.radioGroup)
@@ -381,6 +379,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         builder.create().show()
     }
 
+    // TODO EDITAR Y RELLENAR DESCRIPCION SEGUN SE IMPLEMENTE O NO FIRMA POR DNI (varios)
     private fun dialogSignMethods() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Seleccione un metodo de firmado")
@@ -399,11 +398,9 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                         object: KeyChainAliasCallback {
                             override fun alias(alias: String?) {
                                 if(alias != null){
-//                                    alertDialogConfirmSign(docName, alias)
-
-                                    val h = Handler(Looper.getMainLooper())
-                                    h.post {
-                                        aliasCert = alias
+                                    aliasCert = alias
+                                    /** MOSTRAMOS EL MENSAJE DE CONFIRMACION EN EL HILO DE UI */
+                                    runOnUiThread{
                                         dialogConfirmSign()
                                     }
                                 }
@@ -431,12 +428,16 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         builder.create().show()
     }
 
+    /**
+     * ALERTDIALOG DE CONFIRMACION PARA FIRMAR LOS DOCUMENTOS SELECCIONADOS.
+     * ESTOS DOCUMENTOS SE MUESTRAN EN UNA LISTA
+     */
     private fun dialogConfirmSign() {
         val builder = AlertDialog.Builder(this)
-
         builder.setTitle("SE VAN A FIRMAR LOS SIGUIENTES DOCUMENTOS:")
 
         // TODO PERFECCIONAR STRING DE LISTA DE DOCUMENTOS??
+        /** GENERAMOS LA LISTA DE LOS DOCUMENTOS SELECCIONADOS */
         var list: String = ""
         for (doc: String in docsSelected) {
             list += "\n\n- $doc"
@@ -444,6 +445,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         list += "\n\n\n\nSi esta de acuerdo, pulse en el boton 'Aceptar'.\n\nNOTA: La firma se aplicará en la pagina 1 de cada documento."
         builder.setMessage(list)
 
+        /** FIRMAMOS LOS DOCUMENTOS SELECCIONADOS Y VOLVEMOS AL MENU DE INICIO */
         builder.apply {
             setPositiveButton("Aceptar") { dialog, which ->
                 signVariousDocuments()
