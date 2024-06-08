@@ -80,7 +80,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
      */
     private lateinit var sdh: String
 
+    /** Instancia a la BD de CAN´s */
     private lateinit var _canStore: CANSpecDOStore
+
+//    private lateinit var nfcmanager: NfcManager
+//    private lateinit var nfcadapter: NfcAdapter
 
     // ------------------------------------------------------
 
@@ -104,11 +108,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         /** SI HEMOS VUELTO A ESTA PANTALLA DESPUES DE FIRMAR VARIOS DOCUMENTOS */
         if (intent.getStringExtra("docsFirmados") == "true"){
-            Utils.mostrarError(this, "Los documentos se han firmado con exito. Se han guardado en la carpeta 'VarSign' del dispositivo.")
+            Utils.mostrarMensaje(this, "Los documentos se han firmado exitosamente mediante el uso de certificado digital. Se han guardado en la carpeta 'VarSign' del dispositivo.")
         }
 
         if (intent.getStringExtra("docsFirmados") == "trueDNI"){
-            Utils.mostrarError(this, "El documento se han firmado con exito. Se ha guardado en la carpeta 'VarSign' del dispositivo.")
+            Utils.mostrarMensaje(this, "El documento (o documentos) se han firmado exitosamente mediante el uso de DNI electronico. Se ha guardado en la carpeta 'VarSign' del dispositivo.")
         }
 
         /**
@@ -124,7 +128,18 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         _canStore = CANSpecDOStore(this)
 
+//        try{
+//            nfcmanager = applicationContext.getSystemService(Context.NFC_SERVICE) as NfcManager
+//            nfcadapter = nfcmanager.defaultAdapter
+//        }
+//        catch(e: NullPointerException){
+//            e.printStackTrace()
+//        }
+
         // TODO AYUDA AL USUARIO PARA INDICAR SELECCION DE ARCHIVO DE CERTIFICADO
+        // TODO INTENTAR REFACTORIZAR LLAMADA A FIRMA DOCUMENTOS??
+        // TODO CREAR BOTONES MENU PRINCIPAL POR IA??
+        // TODO HACER APPINTRO
     }
 
     /**
@@ -162,7 +177,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             R.id.btnDocsFirmados -> {
                 /** SI NO HAY NIGUN REGISTRO DE DOCUMENTO FIRMADO GUARDADO EN DATASTORE */
                 if(sdh.isNullOrEmpty()){
-                    Utils.mostrarError(this, "¡Aun no has firmado ningun documento!")
+                    Utils.mostrarMensaje(this, "¡Aun no has firmado ningun documento!")
                 }
                 else{
                     startActivity(Intent(this, SignedDocsHistoric::class.java).apply {
@@ -171,7 +186,13 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
             }
             R.id.btnAddCan -> {
-                dialogAddCan()
+                /** SI EL DISPOSITIVO CONTIENE LECTOR NFC */
+                if(Utils.NFCExists(this)){
+                    dialogAddCan()
+                }
+                else{
+                    Utils.mostrarMensaje(this, "El dispositivo no cuenta con un lector de NFC incorporado.")
+                }
             }
         }
     }
@@ -229,7 +250,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
                 /** SI EL DIRECTORIO NO CONTIENE PDF´S (Se mostrara un mensaje de error) */
                 else {
-                    Utils.mostrarError(
+                    Utils.mostrarMensaje(
                         this,
                         "No se han encontrado documentos con la extension '.pdf' en el directorio seleccionado.\n\nPor favor, selecciona otro directorio diferente."
                     )
@@ -589,7 +610,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             val numcan = text.text.toString()
             if(numcan == "" || numcan.length < 6){
                 dialogAddCan()
-                Utils.mostrarError(this, "Por favor, introduzca un numero de 6 digitos.")
+                Utils.mostrarMensaje(this, "Por favor, introduzca un numero de 6 digitos.")
             }
             else{
                 _canStore!!.save(CANSpecDO(numcan, "", ""))

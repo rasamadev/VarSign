@@ -20,6 +20,8 @@ class AdapterSignedDocsHistoric(
     inner class MyViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView), View.OnClickListener {
         val textViewName: TextView = itemView.findViewById(R.id.docSignedTextName)
         val textViewDate: TextView = itemView.findViewById(R.id.docSignedTextDate)
+        val textViewPerson: TextView = itemView.findViewById(R.id.docSignedTextPerson)
+        val textViewMethod: TextView = itemView.findViewById(R.id.docSignedTextMethod)
         val imageView: ImageView = itemView.findViewById(R.id.docSignedIcon)
 
         init {
@@ -41,7 +43,10 @@ class AdapterSignedDocsHistoric(
 
     override fun onBindViewHolder(holder: MyViewHolder, position: Int) {
         holder.textViewName.text = itemList[position].substringBefore("?")
-        holder.textViewDate.text = "Firmado: ${itemList[position].substringAfter("?")}"
+        holder.textViewDate.text = "Fecha: ${itemList[position].substringAfter("?").substringBefore("<")}"
+        holder.textViewPerson.text = "Firmado por: ${itemList[position].substringAfter(">")}"
+        holder.textViewMethod.text = "Metodo de firma: ${itemList[position].substringAfter("<").substringBefore(">")}"
+
         holder.imageView.setImageResource(R.drawable.ic_document)
     }
 

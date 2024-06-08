@@ -69,6 +69,7 @@ class DNISignActivity : AppCompatActivity(), ReaderCallback {
     private lateinit var privateKey: PrivateKey
     private lateinit var chain: Array<X509Certificate>
     private lateinit var rec: Rectangle
+    private lateinit var aliasCert: String
 
     private lateinit var can: String
 //    private lateinit var docName: String
@@ -165,17 +166,38 @@ class DNISignActivity : AppCompatActivity(), ReaderCallback {
                 }
             Loader.saveCan2DB(canSpecDO, this)
 
+            aliasCert = canSpecDO.userName
             privateKey = keyStore.getKey(certificateBean.getAlias(), null) as PrivateKey
             chain = keyStore.getCertificateChain(certificateBean.getAlias()) as Array<X509Certificate>
             _executor!!.execute {
 //                val result = doInBackground(privateKey)
-                signDocuments()
+//                signDocuments()
+                if(intent.getByteArrayExtra("passwordDoc") != null){
+                    Utils.signDocuments(privateKey, chain, docsSelected, docPath, intent.getByteArrayExtra("passwordDoc")!!, numPageSign, signPosition)
+                }
+                else{
+                    Utils.signDocuments(privateKey, chain, docsSelected, docPath, byteArrayOf(), numPageSign, signPosition)
+                }
                 _handler!!.post {
                     //UI Thread work here
 //                    updateInfo(
 //                        if (result == null) "Firma realizada." else "Error en proceso de firma.",
 //                        result ?: Base64.encodeToString(_signature, Base64.DEFAULT)
 //                    )
+
+                    /**
+                     * GUARDAMOS EN EL DATASTORE DE LA APLICACION EL NOMBRE DEL DOCUMENTO
+                     * FIRMADO JUNTO CON LA FECHA Y HORA DE LA FIRMA, AMBOS DATOS SEPARADOS
+                     * POR UN '?' (PARA DESPUES SPLITEARLO MEDIANTE ESE SEPARADOR)
+                     * // TODO CORREGUIR AQUI Y EN DEMAS SITIOPS
+                     */
+                    for(docName: String in docsSelected){
+                        val calendar = Calendar.getInstance()
+                        val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
+                        lifecycleScope.launch(Dispatchers.IO){
+                            guardarPath("firmado_$docName?${dateFormat.format(calendar.time)}<DNI electronico>$aliasCert")
+                        }
+                    }
 
                     val i = Intent(this, MainActivity::class.java)
                     i.putExtra("docsFirmados", "trueDNI")
@@ -205,101 +227,102 @@ class DNISignActivity : AppCompatActivity(), ReaderCallback {
     /**
      * METODO QUE APLICA LA FIRMA AL DOCUMENTO SELECCIONADO
      */
-    private fun signDocuments() {
-        try {
-            /** CREAMOS UNA 'ExternalSignature' CON LA CLAVE PRIVADA Y LA FUNCION HASH SHA-256 */
-            val pks: ExternalSignature = PrivateKeySignature(
-                privateKey,
-                DigestAlgorithms.SHA256,
-                null
-            )
-
-            for(docName: String in docsSelected){
-                /** ESPECIFICAMOS DONDE IRA GUARDADO EL DOCUMENTO FIRMADO (Carpeta 'VarSign') */
-                val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
-                val fos = FileOutputStream(file)
-
-                /** APLICAMOS LA FIRMA EN LA POSICION Y PAGINA INDICADAS ANTERIORMENTE */
-                val uri = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(docPath), docName))
-                if(intent.getByteArrayExtra("passwordDoc") != null){
-                    pdfReader = PdfReader(contentResolver.openInputStream(uri), intent.getByteArrayExtra("passwordDoc"))
-                }
-                else{
-                    pdfReader = PdfReader(contentResolver.openInputStream(uri))
-                }
-                val stamper = PdfStamper.createSignature(pdfReader, fos, '\u0000')
-
-                val rectangle: Rectangle = pdfReader.getPageSizeWithRotation(numPageSign)
-                if (rectangle.height >= rectangle.width){
-                    when (signPosition) {
-                        "arrIzq" -> rec = Rectangle(20f, 800f, 130f, 830f)
-                        "arrCen" -> rec = Rectangle(243f, 800f, 353f, 830f)
-                        "arrDer" -> rec = Rectangle(466f, 800f, 576f, 830f)
-                        "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
-                        "abaCen" -> rec = Rectangle(243f, 20f, 353f, 50f)
-                        "abaDer" -> rec = Rectangle(466f, 20f, 576f, 50f)
-                    }
-                }
-                else{
-                    when (signPosition) {
-                        "arrIzq" -> rec = Rectangle(20f, 570f, 130f, 600f)
-                        "arrCen" -> rec = Rectangle(360f, 570f, 470f, 600f)
-                        "arrDer" -> rec = Rectangle(690f, 570f, 800f, 600f)
-                        "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
-                        "abaCen" -> rec = Rectangle(360f, 20f, 470f, 50f)
-                        "abaDer" -> rec = Rectangle(690f, 20f, 800f, 50f)
-                    }
-                }
-
-                val appearance = stamper.signatureAppearance
-                appearance.setVisibleSignature(rec, numPageSign, null)
-                appearance.imageScale = -1f
-
-                /**
-                 * UTILIZAMOS UN DIGEST PROPORCIONADO POR BouncyCastle QUE UTILIZA SUS METODOS
-                 * PARA CALCULAR EL HASH DEL DOCUMENTO
-                 */
-                val digest: ExternalDigest = BouncyCastleDigest()
-
-                /** FIRMAMOS EL DOCUMENTO EN FORMATO 'CAdES' */
-                MakeSignature.signDetached(
-                    appearance,
-                    digest,
-                    pks,
-                    chain as Array<X509Certificate>,
-                    null,
-                    null,
-                    null,
-                    0,
-                    MakeSignature.CryptoStandard.CADES,
-                    null as SignaturePolicyIdentifier?
-                )
-
-                /**
-                 * GUARDAMOS EN EL DATASTORE DE LA APLICACION EL NOMBRE DEL DOCUMENTO
-                 * FIRMADO JUNTO CON LA FECHA Y HORA DE LA FIRMA, AMBOS DATOS SEPARADOS
-                 * POR UN '?' (PARA DESPUES SPLITEARLO MEDIANTE ESE SEPARADOR)
-                 */
-                val calendar = Calendar.getInstance()
-                val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
-                lifecycleScope.launch(Dispatchers.IO){
-                    guardarPath("firmado_$docName?${dateFormat.format(calendar.time)}")
-                }
-            }
-        } catch (e: KeyChainException) {
-            e.printStackTrace()
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        } catch (e: FileNotFoundException) {
-            e.printStackTrace()
-        } catch (e: IOException) {
-            e.printStackTrace()
-        } catch (e: GeneralSecurityException) {
-            e.printStackTrace()
-        } catch (e: DocumentException) {
-            e.printStackTrace()
-        }
-    }
+//    private fun signDocuments() {
+//        try {
+//            /** CREAMOS UNA 'ExternalSignature' CON LA CLAVE PRIVADA Y LA FUNCION HASH SHA-256 */
+//            val pks: ExternalSignature = PrivateKeySignature(
+//                privateKey,
+//                DigestAlgorithms.SHA256,
+//                null
+//            )
+//
+//            // TODO ME PIDE LA CONTRASEÑA POR CADA DOCUMENTO A FIRMAR???
+//            for(docName: String in docsSelected){
+//                /** ESPECIFICAMOS DONDE IRA GUARDADO EL DOCUMENTO FIRMADO (Carpeta 'VarSign') */
+//                val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
+//                val fos = FileOutputStream(file)
+//
+//                /** APLICAMOS LA FIRMA EN LA POSICION Y PAGINA INDICADAS ANTERIORMENTE */
+//                val uri = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(docPath), docName))
+//                if(intent.getByteArrayExtra("passwordDoc") != null){
+//                    pdfReader = PdfReader(contentResolver.openInputStream(uri), intent.getByteArrayExtra("passwordDoc"))
+//                }
+//                else{
+//                    pdfReader = PdfReader(contentResolver.openInputStream(uri))
+//                }
+//                val stamper = PdfStamper.createSignature(pdfReader, fos, '\u0000')
+//
+//                val rectangle: Rectangle = pdfReader.getPageSizeWithRotation(numPageSign)
+//                if (rectangle.height >= rectangle.width){
+//                    when (signPosition) {
+//                        "arrIzq" -> rec = Rectangle(20f, 800f, 130f, 830f)
+//                        "arrCen" -> rec = Rectangle(243f, 800f, 353f, 830f)
+//                        "arrDer" -> rec = Rectangle(466f, 800f, 576f, 830f)
+//                        "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
+//                        "abaCen" -> rec = Rectangle(243f, 20f, 353f, 50f)
+//                        "abaDer" -> rec = Rectangle(466f, 20f, 576f, 50f)
+//                    }
+//                }
+//                else{
+//                    when (signPosition) {
+//                        "arrIzq" -> rec = Rectangle(20f, 570f, 130f, 600f)
+//                        "arrCen" -> rec = Rectangle(360f, 570f, 470f, 600f)
+//                        "arrDer" -> rec = Rectangle(690f, 570f, 800f, 600f)
+//                        "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
+//                        "abaCen" -> rec = Rectangle(360f, 20f, 470f, 50f)
+//                        "abaDer" -> rec = Rectangle(690f, 20f, 800f, 50f)
+//                    }
+//                }
+//
+//                val appearance = stamper.signatureAppearance
+//                appearance.setVisibleSignature(rec, numPageSign, null)
+//                appearance.imageScale = -1f
+//
+//                /**
+//                 * UTILIZAMOS UN DIGEST PROPORCIONADO POR BouncyCastle QUE UTILIZA SUS METODOS
+//                 * PARA CALCULAR EL HASH DEL DOCUMENTO
+//                 */
+//                val digest: ExternalDigest = BouncyCastleDigest()
+//
+//                /** FIRMAMOS EL DOCUMENTO EN FORMATO 'CAdES' */
+//                MakeSignature.signDetached(
+//                    appearance,
+//                    digest,
+//                    pks,
+//                    chain as Array<X509Certificate>,
+//                    null,
+//                    null,
+//                    null,
+//                    0,
+//                    MakeSignature.CryptoStandard.CADES,
+//                    null as SignaturePolicyIdentifier?
+//                )
+//
+//                /**
+//                 * GUARDAMOS EN EL DATASTORE DE LA APLICACION EL NOMBRE DEL DOCUMENTO
+//                 * FIRMADO JUNTO CON LA FECHA Y HORA DE LA FIRMA, AMBOS DATOS SEPARADOS
+//                 * POR UN '?' (PARA DESPUES SPLITEARLO MEDIANTE ESE SEPARADOR)
+//                 */
+//                val calendar = Calendar.getInstance()
+//                val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
+//                lifecycleScope.launch(Dispatchers.IO){
+//                    guardarPath("firmado_$docName?${dateFormat.format(calendar.time)}<DNI electronico>$aliasCert")
+//                }
+//            }
+//        } catch (e: KeyChainException) {
+//            e.printStackTrace()
+//        } catch (e: InterruptedException) {
+//            e.printStackTrace()
+//        } catch (e: FileNotFoundException) {
+//            e.printStackTrace()
+//        } catch (e: IOException) {
+//            e.printStackTrace()
+//        } catch (e: GeneralSecurityException) {
+//            e.printStackTrace()
+//        } catch (e: DocumentException) {
+//            e.printStackTrace()
+//        }
+//    }
 
     /**
      * METODO QUE GUARDA EN DATASTORE LA INFORMACION DEL DOCUMENTO FIRMADO
@@ -313,7 +336,7 @@ class DNISignActivity : AppCompatActivity(), ReaderCallback {
                 preferences[stringPreferencesKey("paths")] = name
             }
             else{
-                preferences[stringPreferencesKey("paths")] += ",$name"
+                preferences[stringPreferencesKey("paths")] += "|$name"
             }
         }
     }

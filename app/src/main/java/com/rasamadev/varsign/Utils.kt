@@ -1,20 +1,39 @@
 package com.rasamadev.varsign
 
-import android.Manifest
 import android.app.AlertDialog
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
-import android.provider.Settings
-import android.widget.ListView
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import android.nfc.NfcAdapter
+import android.os.Environment
+import android.security.KeyChainException
+import androidx.lifecycle.lifecycleScope
+import com.itextpdf.text.DocumentException
+import com.itextpdf.text.Rectangle
 import com.itextpdf.text.exceptions.BadPasswordException
 import com.itextpdf.text.pdf.PdfReader
+import com.itextpdf.text.pdf.PdfStamper
+import com.itextpdf.text.pdf.security.BouncyCastleDigest
+import com.itextpdf.text.pdf.security.DigestAlgorithms
+import com.itextpdf.text.pdf.security.ExternalDigest
+import com.itextpdf.text.pdf.security.ExternalSignature
+import com.itextpdf.text.pdf.security.MakeSignature
+import com.itextpdf.text.pdf.security.PrivateKeySignature
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
+import java.io.IOException
 
 import java.io.InputStream
+import java.security.GeneralSecurityException
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 /**
  * CLASE QUE CONTIENE METODOS DE AYUDA QUE SE PUEDEN LLAMAR DIRECTAMENTE
@@ -28,7 +47,7 @@ class Utils {
          * METODO QUE MUESTRA UN ALERTDIALOG DE ADVERTENCIA/ERROR
          * CON UN MENSAJE PERSONALIZADO
          */
-        fun mostrarError(context: Context, message: String) {
+        fun mostrarMensaje(context: Context, message: String) {
             val builder = AlertDialog.Builder(context)
             builder.setMessage(message)
             builder.setPositiveButton("Aceptar") { dialog, _ ->
@@ -67,6 +86,7 @@ class Utils {
             }
         }
 
+        // TODO DESCRIPCION
         fun dialogNoCans(context: Context){
             val builder = AlertDialog.Builder(context)
             builder.setTitle("¡AÑADA UN CAN PRIMERO!")
@@ -79,6 +99,112 @@ class Utils {
             builder.setCancelable(false)
             val dialog = builder.create()
             dialog.show()
+        }
+
+        // TODO DESCRIPCIO
+        fun NFCExists(context: Context): Boolean {
+            val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(context)
+            return nfcAdapter != null
+        }
+
+        fun signDocuments(
+//            context: Context,
+//            alias: String,
+            privateKey: PrivateKey?,
+            chain: Array<X509Certificate>?,
+            docsSelected: Array<String>,
+            docPath: String,
+            passwordDoc: ByteArray,
+            numPageSign: Int,
+            signPosition: String
+        ){
+            try {
+                var pdfReader: PdfReader
+                var rec: Rectangle = Rectangle(20f, 800f, 130f, 830f)
+
+                /** CREAMOS UNA 'ExternalSignature' CON LA CLAVE PRIVADA Y LA FUNCION HASH SHA-256 */
+                val pks: ExternalSignature = PrivateKeySignature(
+                    privateKey,
+                    DigestAlgorithms.SHA256,
+                    null
+                )
+
+                // TODO ME PIDE LA CONTRASEÑA POR CADA DOCUMENTO A FIRMAR???
+                for(docName: String in docsSelected){
+                    /** ESPECIFICAMOS DONDE IRA GUARDADO EL DOCUMENTO FIRMADO (Carpeta 'VarSign') */
+                    val fileout = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
+                    val fos = FileOutputStream(fileout)
+
+                    /** APLICAMOS LA FIRMA EN LA POSICION Y PAGINA INDICADAS ANTERIORMENTE */
+//                    val uri = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(docPath), docName))
+                    val file = File(Environment.getExternalStoragePublicDirectory(docPath), docName)
+                    if(!passwordDoc.isEmpty()){
+                        pdfReader = PdfReader(FileInputStream(file), passwordDoc)
+                    }
+                    else{
+                        pdfReader = PdfReader(FileInputStream(file))
+                    }
+                    val stamper = PdfStamper.createSignature(pdfReader, fos, '\u0000')
+
+                    val rectangle: Rectangle = pdfReader.getPageSizeWithRotation(numPageSign)
+                    if (rectangle.height >= rectangle.width){
+                        when (signPosition) {
+                            "arrIzq" -> rec = Rectangle(20f, 800f, 130f, 830f)
+                            "arrCen" -> rec = Rectangle(243f, 800f, 353f, 830f)
+                            "arrDer" -> rec = Rectangle(466f, 800f, 576f, 830f)
+                            "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
+                            "abaCen" -> rec = Rectangle(243f, 20f, 353f, 50f)
+                            "abaDer" -> rec = Rectangle(466f, 20f, 576f, 50f)
+                        }
+                    }
+                    else{
+                        when (signPosition) {
+                            "arrIzq" -> rec = Rectangle(20f, 570f, 130f, 600f)
+                            "arrCen" -> rec = Rectangle(360f, 570f, 470f, 600f)
+                            "arrDer" -> rec = Rectangle(690f, 570f, 800f, 600f)
+                            "abaIzq" -> rec = Rectangle(20f, 20f, 130f, 50f)
+                            "abaCen" -> rec = Rectangle(360f, 20f, 470f, 50f)
+                            "abaDer" -> rec = Rectangle(690f, 20f, 800f, 50f)
+                        }
+                    }
+
+                    val appearance = stamper.signatureAppearance
+                    appearance.setVisibleSignature(rec, numPageSign, null)
+                    appearance.imageScale = -1f
+
+                    /**
+                     * UTILIZAMOS UN DIGEST PROPORCIONADO POR BouncyCastle QUE UTILIZA SUS METODOS
+                     * PARA CALCULAR EL HASH DEL DOCUMENTO
+                     */
+                    val digest: ExternalDigest = BouncyCastleDigest()
+
+                    /** FIRMAMOS EL DOCUMENTO EN FORMATO 'CAdES' */
+                    MakeSignature.signDetached(
+                        appearance,
+                        digest,
+                        pks,
+                        chain as Array<X509Certificate>,
+                        null,
+                        null,
+                        null,
+                        0,
+                        MakeSignature.CryptoStandard.CADES,
+                        null as SignaturePolicyIdentifier?
+                    )
+                }
+            } catch (e: KeyChainException) {
+                e.printStackTrace()
+            } catch (e: InterruptedException) {
+                e.printStackTrace()
+            } catch (e: FileNotFoundException) {
+                e.printStackTrace()
+            } catch (e: IOException) {
+                e.printStackTrace()
+            } catch (e: GeneralSecurityException) {
+                e.printStackTrace()
+            } catch (e: DocumentException) {
+                e.printStackTrace()
+            }
         }
     }
 }

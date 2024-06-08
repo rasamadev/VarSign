@@ -48,11 +48,9 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
         signedDocsHistoric = intent.getStringExtra("SignedDocsHistoric") as String
 
         /** LO SPLITEAMOS Y LO APLICAMOS AL RECYCLERVIEW DE LA PANTALLA */
-        splitSDH = signedDocsHistoric.split(",").map { it.trim() }.reversed()
+        splitSDH = signedDocsHistoric.split("|").map { it.trim() }.reversed()
         rvSignedDocsHistoric.layoutManager = LinearLayoutManager(this)
         rvSignedDocsHistoric.adapter = AdapterSignedDocsHistoric(splitSDH, this)
-
-        // TODO ITEM > MOSTRAR METODO FIRMA USADO
     }
 
     /**
@@ -89,7 +87,7 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
                 startActivity(intent)
             }
             else{
-                Utils.mostrarError(this, "No se ha encontrado el documento seleccionado en la carpeta 'VarSign'. Es posible que se haya eliminado o movido a otra carpeta.")
+                Utils.mostrarMensaje(this, "No se ha encontrado el documento seleccionado en la carpeta 'VarSign'. Es posible que se haya eliminado o movido a otra carpeta.")
             }
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(this, "No se ha encontrado ninguna aplicacion que pueda realizar esta accion.", Toast.LENGTH_SHORT).show()
