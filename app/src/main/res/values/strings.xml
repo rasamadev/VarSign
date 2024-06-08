@@ -4,4 +4,12 @@
     <string name="sign_documents">Firmar documento(s)</string>
     <string name="signed_documents">Documentos firmados</string>
     <string name="image_description">Imagen descriptiva</string>
+    <string name="add_can">Añadir CAN</string>
+    <string-array name="ages_array">
+        <item>16</item>
+        <item>18</item>
+        <item>21</item>
+        <item>65</item>
+        <item>Custom</item>
+    </string-array>
 </resources>

@@ -10,10 +10,13 @@ import android.os.Looper
 import android.security.KeyChain
 import android.security.KeyChainAliasCallback
 import android.security.KeyChainException
+import android.view.LayoutInflater
 import android.view.View
+import android.widget.AdapterView
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import androidx.appcompat.app.AlertDialog
@@ -32,6 +35,9 @@ import com.itextpdf.text.pdf.security.ExternalDigest
 import com.itextpdf.text.pdf.security.ExternalSignature
 import com.itextpdf.text.pdf.security.MakeSignature
 import com.itextpdf.text.pdf.security.PrivateKeySignature
+import com.rasamadev.varsign.adapter.AdapterCanList
+import de.tsenger.androsmex.data.CANSpecDO
+import de.tsenger.androsmex.data.CANSpecDOStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
@@ -88,6 +94,12 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
     /** String que guardara la posicion de la firma */
     private lateinit var signPosition: String
 
+    private lateinit var _canStore: CANSpecDOStore
+
+    private lateinit var can: CANSpecDO
+
+    // ------------------------------------------------------
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_variousdoclist)
@@ -115,6 +127,8 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         if(edf){
             Utils.mostrarError(this, "Se han eliminado de la lista uno o varios documentos protegidos con contraseña.\n\nSi desea firmar esos documentos, por favor, hagalo mediante la opcion de firma de 'Un documento'.")
         }
+
+        _canStore = CANSpecDOStore(this)
     }
 
     /**
@@ -401,7 +415,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                                     aliasCert = alias
                                     /** MOSTRAMOS EL MENSAJE DE CONFIRMACION EN EL HILO DE UI */
                                     runOnUiThread{
-                                        dialogConfirmSign()
+                                        dialogConfirmSign(true)
                                     }
                                 }
                             }
@@ -415,7 +429,25 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                 }
                 // TODO DNI electronico (NFC)
                 1 -> {
-
+                    if(_canStore.getAll().isEmpty()){
+                        Utils.dialogNoCans(this)
+                    }
+                    else{
+                        val factory = LayoutInflater.from(this)
+                        val canListView: View = factory.inflate(R.layout.can_list, null)
+                        val ad = android.app.AlertDialog.Builder(this).create()
+                        ad.setCancelable(true)
+                        ad.setIcon(R.drawable.dnie_logo)
+                        ad.setView(canListView)
+                        val listW = canListView.findViewById<View>(R.id.canList) as ListView
+                        listW.adapter = AdapterCanList(this, listW, _canStore)
+                        listW.onItemClickListener = AdapterView.OnItemClickListener { parent: AdapterView<*>, view: View?, position: Int, id: Long ->
+                            can = parent.getItemAtPosition(position) as CANSpecDO
+                            ad.dismiss()
+                            dialogConfirmSign(false)
+                        }
+                        ad.show()
+                    }
                 }
             }
             dialog.dismiss()
@@ -432,7 +464,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
      * ALERTDIALOG DE CONFIRMACION PARA FIRMAR LOS DOCUMENTOS SELECCIONADOS.
      * ESTOS DOCUMENTOS SE MUESTRAN EN UNA LISTA
      */
-    private fun dialogConfirmSign() {
+    private fun dialogConfirmSign(cert: Boolean) {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("SE VAN A FIRMAR LOS SIGUIENTES DOCUMENTOS:")
 
@@ -448,11 +480,25 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
         /** FIRMAMOS LOS DOCUMENTOS SELECCIONADOS Y VOLVEMOS AL MENU DE INICIO */
         builder.apply {
             setPositiveButton("Aceptar") { dialog, which ->
-                signVariousDocuments()
+                if(cert){
+                    signVariousDocuments()
 
-                val i = Intent(applicationContext, MainActivity::class.java)
-                i.putExtra("docsFirmados", "true")
-                startActivity(i)
+                    val i = Intent(applicationContext, MainActivity::class.java)
+                    i.putExtra("docsFirmados", "true")
+                    startActivity(i)
+                }
+                else{
+                    val intent = Intent(applicationContext, DNISignActivity::class.java)
+                    intent.putExtra("CAN", can.canNumber)
+                    val array: Array<String> = docsSelected.toTypedArray()
+//                    for((i, doc: String) in docsSelected.withIndex()){
+//                        array[i] = doc
+//                    }
+                    intent.putExtra("docPath", directorySelected)
+                    intent.putExtra("docsSelected", array)
+                    intent.putExtra("signPosition", signPosition)
+                    startActivity(intent)
+                }
             }
             setNegativeButton("Cancelar") { dialog, which ->
                 dialog.dismiss()

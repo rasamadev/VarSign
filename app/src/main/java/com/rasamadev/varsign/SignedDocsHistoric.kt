@@ -11,6 +11,7 @@ import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
+import com.rasamadev.varsign.adapter.AdapterSignedDocsHistoric
 import java.io.File
 
 /**
@@ -50,6 +51,8 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
         splitSDH = signedDocsHistoric.split(",").map { it.trim() }.reversed()
         rvSignedDocsHistoric.layoutManager = LinearLayoutManager(this)
         rvSignedDocsHistoric.adapter = AdapterSignedDocsHistoric(splitSDH, this)
+
+        // TODO ITEM > MOSTRAR METODO FIRMA USADO
     }
 
     /**

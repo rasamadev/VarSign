@@ -9,6 +9,18 @@
     <!-- ImageView en la mitad superior -->
 
     <Button
+        android:id="@+id/btnAddCan"
+        style="@style/Widget.AppCompat.Button.Colored"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="32dp"
+        android:layout_marginTop="16dp"
+        android:text="@string/add_can"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btnDocsFirmados" />
+
+    <Button
         android:id="@+id/btnDocsFirmados"
         style="@style/Widget.AppCompat.Button.Colored"
         android:layout_width="0dp"

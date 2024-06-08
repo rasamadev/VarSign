@@ -33,6 +33,9 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+    packagingOptions {
+          exclude("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+    }
 }
 
 dependencies {
@@ -64,6 +67,21 @@ dependencies {
 //    implementation("androidx.datastore:datastore:1.1.1")
 
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
+
+//    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcprov-jdk15on:1.65")
+
+//    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcpkix-jdk15on:1.65")
+
+//    implementation("org.bouncycastle:bctls-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bctls-jdk15on:1.65")
+
+    implementation("org.jsoup:jsoup:1.17.2")
+//    implementation("com.gemalto.jp2:jp2-android:1.0.3")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-urlconnection:4.12.0")
+    implementation(files("libs\\dniedroid-release.aar"))
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

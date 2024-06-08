@@ -5,4 +5,8 @@
     <color name="colorPrimary">#6200EE</color>
     <color name="colorPrimaryDark">#3700B3</color>
     <color name="colorAccent">#03DAC5</color>
+    <color name="bg_gray">#dcdcdc</color>
+    <color name="PureWhite">#FFFF</color>
+    <color name="list_light_grey">#F0F0F0</color>
+    <color name="TextColor">#222222</color>
 </resources>

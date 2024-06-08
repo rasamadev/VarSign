@@ -15,9 +15,12 @@ import android.security.KeyChain
 import android.security.KeyChainAliasCallback
 import android.security.KeyChainException
 import android.text.InputType
+import android.view.LayoutInflater
 import android.view.View
+import android.widget.AdapterView
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ListView
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
@@ -40,10 +43,12 @@ import com.itextpdf.text.pdf.security.ExternalSignature
 import com.itextpdf.text.pdf.security.MakeSignature
 import com.itextpdf.text.pdf.security.MakeSignature.CryptoStandard
 import com.itextpdf.text.pdf.security.PrivateKeySignature
+import com.rasamadev.varsign.adapter.AdapterCanList
+import de.tsenger.androsmex.data.CANSpecDO
+import de.tsenger.androsmex.data.CANSpecDOStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
-import org.spongycastle.jce.provider.BouncyCastleProvider
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
@@ -51,7 +56,6 @@ import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.PrivateKey
-import java.security.Security
 import java.security.cert.X509Certificate
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -121,6 +125,9 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     /** Numero de la pagina donde se insertará la firma */
     private var numPageSign: Int = 0
 
+    /** String que guardara la posicion de la firma */
+    private lateinit var signPosition: String
+
     /** Alias del certificado seleccionado */
     private lateinit var aliasCert: String
 
@@ -129,6 +136,15 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
 
     /** Posible contraseña del documento a firmar */
     private lateinit var passwordDoc: ByteArray
+
+    /** Si el documento seleccionado tiene contraseña o no */
+    private var docPasswordExists: Boolean = false
+
+    private lateinit var _canStore: CANSpecDOStore
+
+    private lateinit var can: CANSpecDO
+
+    // ------------------------------------------------------
 
     /**
      * RECOGEMOS EL PDF SELECCIONADO EN EL EXPLORADOR DE ARCHIVOS
@@ -139,9 +155,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                 /** COMPROBACION DE SI EL PDF TIENE CONTRASEÑA */
                 docName = getFileName(uri) as String
                 if(Utils.isPasswordProtected(contentResolver.openInputStream(uri))){
+                    docPasswordExists = true
                     dialogRequestPassword(uri)
                 }
                 else{
+                    docPasswordExists = false
                     continueDocSelected(uri)
                 }
             }
@@ -162,6 +180,8 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_singledoc)
         initView()
+
+        _canStore = CANSpecDOStore(this)
     }
 
     /**
@@ -272,7 +292,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         if (path != null) {
             val lastSlashIndex = path.lastIndexOf('/')
             if (lastSlashIndex != -1) {
-                return path.substring(0, lastSlashIndex + 1)
+                return path.substring(0, lastSlashIndex + 1).substringAfter(":")
             }
         }
         return null
@@ -282,7 +302,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
      * METODO QUE CARGA EL DOCUMENTO SELECCIONADO, GUARDA SU NOMBRE, RUTA
      * Y NUMERO DE PAGINAS, Y MODIFICA ALGUNOS ELEMENTOS DE LA PANTALLA
      */
-    private fun continueDocSelected(uri: Uri, passwordExists: Boolean = false) {
+    private fun continueDocSelected(uri: Uri) {
         /** GUARDAMOS EL NOMBRE Y RUTA DEL DOCUMENTO SELECCIONADO */
         docName = getFileName(uri) as String // sobra?
         docPath = getFilePath(uri.path) as String
@@ -291,7 +311,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         docSeleccionado = uri
 
         /** CARGAMOS EL DOCUMENTO CON O SIN CONTRASEÑA */
-        if(passwordExists){
+        if(docPasswordExists){
             pdfReader = PdfReader(contentResolver.openInputStream(uri), passwordDoc)
         }
         else{
@@ -327,22 +347,22 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         val rectangle: Rectangle = pdfReader.getPageSizeWithRotation(numPageSign)
         if (rectangle.height >= rectangle.width){
             when (idLugarFirma) {
-                rbArrIzq.id -> rec = Rectangle(20f, 800f, 130f, 830f)
-                rbArrCen.id -> rec = Rectangle(243f, 800f, 353f, 830f)
-                rbArrDer.id -> rec = Rectangle(466f, 800f, 576f, 830f)
-                rbAbaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
-                rbAbaCen.id -> rec = Rectangle(243f, 20f, 353f, 50f)
-                rbAbaDer.id -> rec = Rectangle(466f, 20f, 576f, 50f)
+                rbArrIzq.id -> {rec = Rectangle(20f, 800f, 130f, 830f);signPosition = "arrIzq"}
+                rbArrCen.id -> {rec = Rectangle(243f, 800f, 353f, 830f);signPosition = "arrCen"}
+                rbArrDer.id -> {rec = Rectangle(466f, 800f, 576f, 830f);signPosition = "arrDer"}
+                rbAbaIzq.id -> {rec = Rectangle(20f, 20f, 130f, 50f);signPosition = "abaIzq"}
+                rbAbaCen.id -> {rec = Rectangle(243f, 20f, 353f, 50f);signPosition = "abaCen"}
+                rbAbaDer.id -> {rec = Rectangle(466f, 20f, 576f, 50f);signPosition = "abaDer"}
             }
         }
         else{
             when (idLugarFirma) {
-                rbArrIzq.id -> rec = Rectangle(20f, 570f, 130f, 600f)
-                rbArrCen.id -> rec = Rectangle(360f, 570f, 470f, 600f)
-                rbArrDer.id -> rec = Rectangle(690f, 570f, 800f, 600f)
-                rbAbaIzq.id -> rec = Rectangle(20f, 20f, 130f, 50f)
-                rbAbaCen.id -> rec = Rectangle(360f, 20f, 470f, 50f)
-                rbAbaDer.id -> rec = Rectangle(690f, 20f, 800f, 50f)
+                rbArrIzq.id -> {rec = Rectangle(20f, 570f, 130f, 600f);signPosition = "arrIzq"}
+                rbArrCen.id -> {rec = Rectangle(360f, 570f, 470f, 600f);signPosition = "arrCen"}
+                rbArrDer.id -> {rec = Rectangle(690f, 570f, 800f, 600f);signPosition = "arrDer"}
+                rbAbaIzq.id -> {rec = Rectangle(20f, 20f, 130f, 50f);signPosition = "abaIzq"}
+                rbAbaCen.id -> {rec = Rectangle(360f, 20f, 470f, 50f);signPosition = "abaCen"}
+                rbAbaDer.id -> {rec = Rectangle(690f, 20f, 800f, 50f);signPosition = "abaDer"}
             }
         }
 
@@ -376,7 +396,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                     /** APLICAMOS LA FIRMA EN LA POSICION Y PAGINA INDICADAS ANTERIORMENTE */
                     val stamper = PdfStamper.createSignature(pdfReader, fos, '\u0000')
                     val appearance = stamper.signatureAppearance
-                    appearance.setVisibleSignature(rec, Integer.parseInt(etNumPagDoc.text.toString()), null)
+                    appearance.setVisibleSignature(rec, numPageSign, null)
                     appearance.imageScale = -1f
 
                     /**
@@ -441,7 +461,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
             .setPositiveButton("Aceptar") { dialogInterface, i ->
                 passwordDoc = editText.text.toString().toByteArray()
                 if(Utils.isPasswordValid(contentResolver.openInputStream(uri), passwordDoc)){
-                    continueDocSelected(uri, true)
+                    continueDocSelected(uri)
                 }
                 else{
                     dialogRequestPassword(uri, true)
@@ -503,7 +523,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                                     aliasCert = alias
                                     /** MOSTRAMOS EL MENSAJE DE CONFIRMACION EN EL HILO DE UI */
                                     runOnUiThread{
-                                        dialogConfirmSign()
+                                        dialogConfirmSign(true)
                                     }
                                 }
                             }
@@ -515,9 +535,27 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                         null
                     )
                 }
-                // TODO DNI electronico (NFC)
+                /** DNI electronico (NFC) */
                 1 -> {
-
+                    if(_canStore.getAll().isEmpty()){
+                        Utils.dialogNoCans(this)
+                    }
+                    else{
+                        val factory = LayoutInflater.from(this)
+                        val canListView: View = factory.inflate(R.layout.can_list, null)
+                        val ad = AlertDialog.Builder(this).create()
+                        ad.setCancelable(true)
+                        ad.setIcon(R.drawable.dnie_logo)
+                        ad.setView(canListView)
+                        val listW = canListView.findViewById<View>(R.id.canList) as ListView
+                        listW.adapter = AdapterCanList(this, listW, _canStore)
+                        listW.onItemClickListener = AdapterView.OnItemClickListener { parent: AdapterView<*>, view: View?, position: Int, id: Long ->
+                            can = parent.getItemAtPosition(position) as CANSpecDO
+                            ad.dismiss()
+                            dialogConfirmSign(false)
+                        }
+                        ad.show()
+                    }
                 }
             }
             dialog.dismiss()
@@ -534,23 +572,43 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     /**
      * ALERTDIALOG DE CONFIRMACION PARA FIRMAR EL DOCUMENTO
      */
-    private fun dialogConfirmSign() {
+    private fun dialogConfirmSign(cert: Boolean) {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("CONFIRMACION")
-        builder.setMessage("Se va a proceder a firmar el documento '$docName' con el certificado $aliasCert. ¿Esta seguro?")
+        if(cert){
+            builder.setMessage("Se va a proceder a firmar el documento '$docName' con el certificado $aliasCert. ¿Esta seguro?")
+        }
+        else{
+            builder.setMessage("Se va a proceder a firmar el documento '$docName' con el CAN ${can.canNumber}. ¿Esta seguro?")
+        }
 
         builder.setPositiveButton("Aceptar") { dialog, which ->
-            /** ARRANCAMOS EN EL HILO PRINCIPAL DE LA APLICACION */
-            val h = Handler(Looper.getMainLooper())
-            h.post {
-                /** GENERAMOS EL NUEVO DOCUMENTO FIRMADO */
-                signOneDocument()
+            if(cert){
+                /** ARRANCAMOS EN EL HILO PRINCIPAL DE LA APLICACION */
+                val h = Handler(Looper.getMainLooper())
+                h.post {
+                    /** GENERAMOS EL NUEVO DOCUMENTO FIRMADO */
+                    signOneDocument()
 
-                /** RESTABLECEMOS LOS ELEMENTOS DE LA PAGINA A SU ESTADO PRIMARIO */
-                clearElements()
+                    /** RESTABLECEMOS LOS ELEMENTOS DE LA PAGINA A SU ESTADO PRIMARIO */
+                    clearElements()
 
-                /** MOSTRAMOS MENSAJE DE DOCUMENTO FIRMADO */
-                dialogDocSigned()
+                    /** MOSTRAMOS MENSAJE DE DOCUMENTO FIRMADO */
+                    dialogDocSigned()
+                }
+            }
+            else{
+                val intent = Intent(this, DNISignActivity::class.java)
+                intent.putExtra("CAN", can.canNumber)
+//                intent.putExtra("docName", docName)
+                intent.putExtra("docsSelected", arrayOf(docName))
+                intent.putExtra("docPath", docPath)
+                intent.putExtra("numPageSign", numPageSign)
+                intent.putExtra("signPosition", signPosition)
+                if(docPasswordExists){
+                    intent.putExtra("passwordDoc", passwordDoc)
+                }
+                startActivity(intent)
             }
         }
 

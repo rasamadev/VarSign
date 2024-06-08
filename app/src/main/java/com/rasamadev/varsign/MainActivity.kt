@@ -4,6 +4,7 @@ import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.app.AlertDialog
 import android.app.KeyguardManager
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -12,22 +13,25 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.security.KeyChain
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.documentfile.provider.DocumentFile
-import androidx.activity.OnBackPressedCallback
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
-import com.itextpdf.text.exceptions.BadPasswordException
+import de.tsenger.androsmex.data.CANSpecDO
+import de.tsenger.androsmex.data.CANSpecDOStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -48,6 +52,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     /** Boton "Documentos firmados" */
     private lateinit var btnDocsFirmados: Button
+
+    /** Boton "Añadir CAN" */
+    private lateinit var btnAddCan: Button
 
     // ------------------------------------------------------
 
@@ -72,6 +79,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
      * sdh = SignedDocumentsHistoric
      */
     private lateinit var sdh: String
+
+    private lateinit var _canStore: CANSpecDOStore
 
     // ------------------------------------------------------
 
@@ -98,6 +107,10 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             Utils.mostrarError(this, "Los documentos se han firmado con exito. Se han guardado en la carpeta 'VarSign' del dispositivo.")
         }
 
+        if (intent.getStringExtra("docsFirmados") == "trueDNI"){
+            Utils.mostrarError(this, "El documento se han firmado con exito. Se ha guardado en la carpeta 'VarSign' del dispositivo.")
+        }
+
         /**
          * CORRUTINA QUE SE EJECUTA EN EL HILO "IO" QUE NOS PERMITIRA
          * EXTRAER EL HISTORIAL DE DOCUMENTOS FIRMADOS DEL DATASTORE
@@ -108,6 +121,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 sdh = it.path
             }
         }
+
+        _canStore = CANSpecDOStore(this)
 
         // TODO AYUDA AL USUARIO PARA INDICAR SELECCION DE ARCHIVO DE CERTIFICADO
     }
@@ -154,6 +169,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                         putExtra("SignedDocsHistoric", sdh)
                     })
                 }
+            }
+            R.id.btnAddCan -> {
+                dialogAddCan()
             }
         }
     }
@@ -242,10 +260,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         btnInstalarCertificado = findViewById<Button>(R.id.btnInstalarCertificado)
         btnFirmarDocs = findViewById<Button>(R.id.btnFirmarDocs)
         btnDocsFirmados = findViewById<Button>(R.id.btnDocsFirmados)
+        btnAddCan = findViewById(R.id.btnAddCan)
 
         btnInstalarCertificado.setOnClickListener(this)
         btnFirmarDocs.setOnClickListener(this)
         btnDocsFirmados.setOnClickListener(this)
+        btnAddCan.setOnClickListener(this)
     }
 
     /**
@@ -554,5 +574,31 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         builder.setCancelable(false)
         val dialog = builder.create()
         dialog.show()
+    }
+
+    private fun dialogAddCan(){
+        val factory = LayoutInflater.from(this)
+        val canEntryView = factory.inflate(R.layout.sample_can, null)
+        val ad = AlertDialog.Builder(this).create()
+//        ad.setCancelable(false)
+        ad.setView(canEntryView)
+        ad.setButton(
+            AlertDialog.BUTTON_POSITIVE, "Aceptar"
+        ) { dialog: DialogInterface?, which: Int ->
+            val text = ad.findViewById<View>(R.id.can_edit) as EditText
+            val numcan = text.text.toString()
+            if(numcan == "" || numcan.length < 6){
+                dialogAddCan()
+                Utils.mostrarError(this, "Por favor, introduzca un numero de 6 digitos.")
+            }
+            else{
+                _canStore!!.save(CANSpecDO(numcan, "", ""))
+                Toast.makeText(this, "CAN añadido.", Toast.LENGTH_SHORT).show()
+            }
+        }
+        ad.setButton(
+            AlertDialog.BUTTON_NEGATIVE, "Cancelar"
+        ) { dialog: DialogInterface?, which: Int -> ad.dismiss() }
+        ad.show()
     }
 }

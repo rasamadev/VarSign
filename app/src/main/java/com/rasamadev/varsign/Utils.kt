@@ -1,7 +1,16 @@
 package com.rasamadev.varsign
 
+import android.Manifest
 import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.ListView
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.itextpdf.text.exceptions.BadPasswordException
 import com.itextpdf.text.pdf.PdfReader
 
@@ -56,6 +65,20 @@ class Utils {
             } catch (e: BadPasswordException) {
                 false
             }
+        }
+
+        fun dialogNoCans(context: Context){
+            val builder = AlertDialog.Builder(context)
+            builder.setTitle("¡AÑADA UN CAN PRIMERO!")
+            builder.setMessage("Puede añadirlo desde el menu principal de la aplicacion en el boton 'AÑADIR CAN''")
+
+            builder.setPositiveButton("Aceptar") { dialog, which ->
+                dialog.dismiss()
+            }
+
+            builder.setCancelable(false)
+            val dialog = builder.create()
+            dialog.show()
         }
     }
 }

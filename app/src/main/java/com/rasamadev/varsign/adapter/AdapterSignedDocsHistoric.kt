@@ -1,4 +1,4 @@
-package com.rasamadev.varsign
+package com.rasamadev.varsign.adapter
 
 import android.view.LayoutInflater
 import android.view.View
@@ -6,9 +6,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
+import com.rasamadev.varsign.R
 
 class AdapterSignedDocsHistoric(
     val itemList: List<String>,
