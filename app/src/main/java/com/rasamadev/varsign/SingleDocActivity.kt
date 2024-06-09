@@ -5,15 +5,14 @@ import android.content.ActivityNotFoundException
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
-import android.os.AsyncTask
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
+import android.provider.Settings
 import android.security.KeyChain
 import android.security.KeyChainAliasCallback
-import android.security.KeyChainException
 import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
@@ -31,31 +30,18 @@ import androidx.core.content.FileProvider
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.lifecycleScope
-import com.itextpdf.text.DocumentException
 import com.itextpdf.text.Rectangle
 import com.itextpdf.text.exceptions.InvalidPdfException
 import com.itextpdf.text.pdf.PdfReader
-import com.itextpdf.text.pdf.PdfStamper
-import com.itextpdf.text.pdf.security.BouncyCastleDigest
-import com.itextpdf.text.pdf.security.DigestAlgorithms
-import com.itextpdf.text.pdf.security.ExternalDigest
-import com.itextpdf.text.pdf.security.ExternalSignature
-import com.itextpdf.text.pdf.security.MakeSignature
-import com.itextpdf.text.pdf.security.MakeSignature.CryptoStandard
-import com.itextpdf.text.pdf.security.PrivateKeySignature
 import com.rasamadev.varsign.adapter.AdapterCanList
+import com.rasamadev.varsign.utils.Dialogs
+import com.rasamadev.varsign.utils.Utils
 import de.tsenger.androsmex.data.CANSpecDO
 import de.tsenger.androsmex.data.CANSpecDOStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
 import java.io.File
-import java.io.FileNotFoundException
-import java.io.FileOutputStream
-import java.io.IOException
-import java.security.GeneralSecurityException
 import java.security.KeyFactory
-import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -141,8 +127,10 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     /** Si el documento seleccionado tiene contraseña o no */
     private var docPasswordExists: Boolean = false
 
+    /** Instancia a la BD de CAN´s (SQLite LOCAL) */
     private lateinit var _canStore: CANSpecDOStore
 
+    /** Numero CAN seleccionado */
     private lateinit var can: CANSpecDO
 
     // ------------------------------------------------------
@@ -172,7 +160,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                  */
                 docSeleccionado = null
                 clearElements()
-                Utils.mostrarMensaje(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
+                Dialogs.mostrarMensaje(this, "No se pudo abrir '$docName' debido a que no es un tipo de archivo admitido o esta dañado.\n\nPor favor, intentelo de nuevo con otro documento.")
             }
         }
     }
@@ -182,6 +170,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         setContentView(R.layout.activity_singledoc)
         initView()
 
+        /** RECUPERAMOS LOS CAN´s DE LA BD */
         _canStore = CANSpecDOStore(this)
     }
 
@@ -220,7 +209,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
             R.id.btnFirmar -> {
                 /** SI NO SE HA SELECCIONADO NINGUN DOCUMENTO */
                 if(docSeleccionado == null){
-                    Utils.mostrarMensaje(this, "¡No has seleccionado un documento!")
+                    Dialogs.mostrarMensaje(this, "¡No has seleccionado un documento!")
                 }
                 /**
                  * SI EL NUMERO DE PAGINA NO SE HA INDICADO
@@ -228,7 +217,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                  * O ES MAYOR QUE EL NUMERO DE PAGINAS DEL DOCUMENTO
                  */
                 else if(etNumPagDoc.text.toString() == "" || Integer.parseInt(etNumPagDoc.text.toString()) < 1 || Integer.parseInt(etNumPagDoc.text.toString()) > docPages){
-                    Utils.mostrarMensaje(this, "Por favor, establece un numero de pagina correcto. (Minimo: 1, maximo: $docPages)")
+                    Dialogs.mostrarMensaje(this, "Por favor, establece un numero de pagina correcto. (Minimo: 1, maximo: $docPages)")
                 }
                 /** SI YA EXISTE EN LA CARPETA 'VarSign' EL MISMO DOCUMENTO YA FIRMADO O UNO CON NOMBRE SIMILAR */
                 else if(File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName").exists()){
@@ -371,71 +360,21 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     /**
-     * METODO QUE APLICA LA FIRMA AL DOCUMENTO SELECCIONADO
+     * METODO QUE GUARDA EN DATASTORE LA INFORMACION DEL DOCUMENTO FIRMADO
+     *
+     * SI NO ES EL PRIMER DOCUMENTO FIRMADO, GUARDA LA INFORMACION CON UNA
+     * COMA DELANTE (PARA QUE SEA SPLITEADA DESPUES), EN CASO CONTRARIO, SIN ELLA
      */
-//    private fun signOneDocument() {
-//        object : AsyncTask<Void?, Void?, Void?>() {
-//            override fun doInBackground(vararg params: Void?): Void? {
-//                var privateKey: PrivateKey? = null
-//                try {
-//                    /** RECOGEMOS LA CLAVE PRIVADA Y EL CHAIN DEL CERTIFICADO SELECCIONADO */
-//                    privateKey = KeyChain.getPrivateKey(applicationContext, aliasCert)
-//                    val keyFactory = KeyFactory.getInstance(privateKey!!.algorithm, "AndroidKeyStore")
-//                    val chain: Array<X509Certificate>? = KeyChain.getCertificateChain(applicationContext, aliasCert)
-//
-//                    /** CREAMOS UNA 'ExternalSignature' CON LA CLAVE PRIVADA Y LA FUNCION HASH SHA-256 */
-//                    val pks: ExternalSignature = PrivateKeySignature(
-//                        privateKey,
-//                        DigestAlgorithms.SHA256,
-//                        null
-//                    )
-//
-//                    /** ESPECIFICAMOS DONDE IRA GUARDADO EL DOCUMENTO FIRMADO (Carpeta 'VarSign') */
-//                    val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
-//                    val fos = FileOutputStream(file)
-//
-//                    /** APLICAMOS LA FIRMA EN LA POSICION Y PAGINA INDICADAS ANTERIORMENTE */
-//                    val stamper = PdfStamper.createSignature(pdfReader, fos, '\u0000')
-//                    val appearance = stamper.signatureAppearance
-//                    appearance.setVisibleSignature(rec, numPageSign, null)
-//                    appearance.imageScale = -1f
-//
-//                    /**
-//                     * UTILIZAMOS UN DIGEST PROPORCIONADO POR BouncyCastle QUE UTILIZA SUS METODOS
-//                     * PARA CALCULAR EL HASH DEL DOCUMENTO
-//                     */
-//                    val digest: ExternalDigest = BouncyCastleDigest()
-//
-//                    /** FIRMAMOS EL DOCUMENTO EN FORMATO 'CAdES' */
-//                    MakeSignature.signDetached(
-//                        appearance,
-//                        digest,
-//                        pks,
-//                        chain as Array<X509Certificate>,
-//                        null,
-//                        null,
-//                        null,
-//                        0,
-//                        CryptoStandard.CADES,
-//                        null as SignaturePolicyIdentifier?
-//                    )
-//                } catch (e: KeyChainException) {
-//                    e.printStackTrace()
-//                } catch (e: InterruptedException) {
-//                    e.printStackTrace()
-//                } catch (e: FileNotFoundException) {
-//                    e.printStackTrace()
-//                } catch (e: IOException) {
-//                    e.printStackTrace()
-//                } catch (e: GeneralSecurityException) {
-//                    e.printStackTrace()
-//                } catch (e: DocumentException) {
-//                    e.printStackTrace()
-//                }
-//                return null
-//            }
-//        }.execute()
-//    }
+    private suspend fun guardarPath(name: String) {
+        dataStore.edit{ preferences ->
+            if(preferences[stringPreferencesKey("paths")].isNullOrEmpty()){
+                preferences[stringPreferencesKey("paths")] = name
+            }
+            else{
+                preferences[stringPreferencesKey("paths")] += "|$name"
+            }
+        }
+    }
 
     // ---------------------------------------- DIALOG´S ---------------------------------------- //
 
@@ -540,29 +479,40 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                 1 -> {
                     /** SI EL DISPOSITIVO CONTIENE LECTOR NFC */
                     if(Utils.NFCExists(this)){
-                        /** SI NO HAY CAN´S GUARDADOS EN LA BD */
-                        if(_canStore.getAll().isEmpty()){
-                            Utils.dialogNoCans(this)
+                        /**
+                         * COMPROBAMOS SI EL NFC ESTA ACTIVADO PARA QUE LA FIRMA POR DNI
+                         * FUNCIONE CORRECTAMENTE, YA QUE SI PASAMOS A LA SIGUIENTE
+                         * PANTALLA Y NO ESTA ACTIVADO, NO SE RECONOCERA EL DNI AL INTENTAR
+                         * LEERLO
+                         */
+                        if(Utils.NFCActivated(this)){
+                            /** SI NO HAY CAN´S GUARDADOS EN LA BD */
+                            if(_canStore.getAll().isEmpty()){
+                                Utils.dialogNoCans(this)
+                            }
+                            else{
+                                val factory = LayoutInflater.from(this)
+                                val canListView: View = factory.inflate(R.layout.can_list, null)
+                                val ad = AlertDialog.Builder(this).create()
+                                ad.setCancelable(true)
+                                ad.setIcon(R.drawable.dnie_logo)
+                                ad.setView(canListView)
+                                val listW = canListView.findViewById<View>(R.id.canList) as ListView
+                                listW.adapter = AdapterCanList(this, listW, _canStore)
+                                listW.onItemClickListener = AdapterView.OnItemClickListener { parent: AdapterView<*>, view: View?, position: Int, id: Long ->
+                                    can = parent.getItemAtPosition(position) as CANSpecDO
+                                    ad.dismiss()
+                                    dialogConfirmSign(false)
+                                }
+                                ad.show()
+                            }
                         }
                         else{
-                            val factory = LayoutInflater.from(this)
-                            val canListView: View = factory.inflate(R.layout.can_list, null)
-                            val ad = AlertDialog.Builder(this).create()
-                            ad.setCancelable(true)
-                            ad.setIcon(R.drawable.dnie_logo)
-                            ad.setView(canListView)
-                            val listW = canListView.findViewById<View>(R.id.canList) as ListView
-                            listW.adapter = AdapterCanList(this, listW, _canStore)
-                            listW.onItemClickListener = AdapterView.OnItemClickListener { parent: AdapterView<*>, view: View?, position: Int, id: Long ->
-                                can = parent.getItemAtPosition(position) as CANSpecDO
-                                ad.dismiss()
-                                dialogConfirmSign(false)
-                            }
-                            ad.show()
+                            dialogNFCConfig()
                         }
                     }
                     else{
-                        Utils.mostrarMensaje(this, "El dispositivo no cuenta con un lector de NFC incorporado.")
+                        Dialogs.mostrarMensaje(this, "El dispositivo no cuenta con un lector de NFC incorporado.")
                     }
                 }
             }
@@ -591,12 +541,10 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         }
 
         builder.setPositiveButton("Aceptar") { dialog, which ->
+            /** FIRMA CON CERTIFICADO DIGITAL */
             if(cert){
                 /** ARRANCAMOS EN EL HILO PRINCIPAL DE LA APLICACION */
                 Executors.newSingleThreadExecutor().execute{
-                    /** GENERAMOS EL NUEVO DOCUMENTO FIRMADO */
-//                    signOneDocument()
-
                     /** RECOGEMOS LA CLAVE PRIVADA Y EL CHAIN DEL CERTIFICADO SELECCIONADO */
                     val privateKey = KeyChain.getPrivateKey(applicationContext, aliasCert)
                     val keyFactory = KeyFactory.getInstance(privateKey!!.algorithm, "AndroidKeyStore")
@@ -627,18 +575,8 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                         dialogDocSigned()
                     }
                 }
-//                val h = Handler(Looper.getMainLooper())
-//                h.post {
-//                    /** GENERAMOS EL NUEVO DOCUMENTO FIRMADO */
-//                    signOneDocument()
-//
-//                    /** RESTABLECEMOS LOS ELEMENTOS DE LA PAGINA A SU ESTADO PRIMARIO */
-//                    clearElements()
-//
-//                    /** MOSTRAMOS MENSAJE DE DOCUMENTO FIRMADO */
-//                    dialogDocSigned()
-//                }
             }
+            /** FIRMA CON DNI ELECTRONICO */
             else{
                 val intent = Intent(this, DNISignActivity::class.java)
                 intent.putExtra("CAN", can.canNumber)
@@ -671,18 +609,6 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
      * - CERRAR: Cerrar esta ventana y mantenerse en la misma pantalla
      */
     private fun dialogDocSigned() {
-
-//        /**
-//         * GUARDAMOS EN EL DATASTORE DE LA APLICACION EL NOMBRE DEL DOCUMENTO
-//         * FIRMADO JUNTO CON LA FECHA Y HORA DE LA FIRMA, AMBOS DATOS SEPARADOS
-//         * POR UN '?' (PARA DESPUES SPLITEARLO MEDIANTE ESE SEPARADOR)
-//         */
-//        val calendar = Calendar.getInstance()
-//        val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
-//        lifecycleScope.launch(Dispatchers.IO){
-//            guardarPath("firmado_$docName?${dateFormat.format(calendar.time)}<Certificado digital>$aliasCert")
-//        }
-
         val builder = AlertDialog.Builder(this)
         builder.setTitle("DOCUMENTO FIRMADO CON EXITO")
         builder.setMessage("Se ha guardado en la carpeta 'VarSign' del dispositivo.\n\n¿Que quiere hacer?")
@@ -728,79 +654,26 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         dialog.show()
     }
 
-    /**
-     * METODO QUE GUARDA EN DATASTORE LA INFORMACION DEL DOCUMENTO FIRMADO
-     *
-     * SI NO ES EL PRIMER DOCUMENTO FIRMADO, GUARDA LA INFORMACION CON UNA
-     * COMA DELANTE (PARA QUE SEA SPLITEADA DESPUES), EN CASO CONTRARIO, SIN ELLA
-     */
-    private suspend fun guardarPath(name: String) {
-        dataStore.edit{ preferences ->
-            if(preferences[stringPreferencesKey("paths")].isNullOrEmpty()){
-                preferences[stringPreferencesKey("paths")] = name
-            }
-            else{
-                preferences[stringPreferencesKey("paths")] += "|$name"
+    private fun dialogNFCConfig() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("ADVERTENCIA")
+        builder.setMessage("Es necesario que el lector NFC este activado en su dispositivo antes de seguir con el proceso de firma. Por favor, acceda a los ajustes para configurarlo.")
+
+        builder.setPositiveButton("Ir a ajustes") { dialog, which ->
+            val intent = Intent(Settings.ACTION_NFC_SETTINGS)
+            if (intent.resolveActivity(this.packageManager) != null) {
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "No se pudo abrir la configuración de seguridad", Toast.LENGTH_SHORT).show()
             }
         }
-    }
 
-    private fun signOneDocument(){
-        var privateKey: PrivateKey? = null
-        try {
-            /** RECOGEMOS LA CLAVE PRIVADA Y EL CHAIN DEL CERTIFICADO SELECCIONADO */
-            privateKey = KeyChain.getPrivateKey(applicationContext, aliasCert)
-            val keyFactory = KeyFactory.getInstance(privateKey!!.algorithm, "AndroidKeyStore")
-            val chain: Array<X509Certificate>? = KeyChain.getCertificateChain(applicationContext, aliasCert)
-
-            /** CREAMOS UNA 'ExternalSignature' CON LA CLAVE PRIVADA Y LA FUNCION HASH SHA-256 */
-            val pks: ExternalSignature = PrivateKeySignature(
-                privateKey,
-                DigestAlgorithms.SHA256,
-                null
-            )
-
-            /** ESPECIFICAMOS DONDE IRA GUARDADO EL DOCUMENTO FIRMADO (Carpeta 'VarSign') */
-            val file = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
-            val fos = FileOutputStream(file)
-
-            /** APLICAMOS LA FIRMA EN LA POSICION Y PAGINA INDICADAS ANTERIORMENTE */
-            val stamper = PdfStamper.createSignature(pdfReader, fos, '\u0000')
-            val appearance = stamper.signatureAppearance
-            appearance.setVisibleSignature(rec, numPageSign, null)
-            appearance.imageScale = -1f
-
-            /**
-             * UTILIZAMOS UN DIGEST PROPORCIONADO POR BouncyCastle QUE UTILIZA SUS METODOS
-             * PARA CALCULAR EL HASH DEL DOCUMENTO
-             */
-            val digest: ExternalDigest = BouncyCastleDigest()
-
-            /** FIRMAMOS EL DOCUMENTO EN FORMATO 'CAdES' */
-            MakeSignature.signDetached(
-                appearance,
-                digest,
-                pks,
-                chain as Array<X509Certificate>,
-                null,
-                null,
-                null,
-                0,
-                CryptoStandard.CADES,
-                null as SignaturePolicyIdentifier?
-            )
-        } catch (e: KeyChainException) {
-            e.printStackTrace()
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        } catch (e: FileNotFoundException) {
-            e.printStackTrace()
-        } catch (e: IOException) {
-            e.printStackTrace()
-        } catch (e: GeneralSecurityException) {
-            e.printStackTrace()
-        } catch (e: DocumentException) {
-            e.printStackTrace()
+        builder.setNegativeButton("Cancelar") { dialog, which ->
+            dialog.dismiss()
         }
+
+        builder.setCancelable(false)
+        val dialog = builder.create()
+        dialog.show()
     }
 }

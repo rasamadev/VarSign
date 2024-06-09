@@ -1,12 +1,10 @@
-package com.rasamadev.varsign
+package com.rasamadev.varsign.utils
 
 import android.app.AlertDialog
 import android.content.Context
-import android.net.Uri
 import android.nfc.NfcAdapter
 import android.os.Environment
 import android.security.KeyChainException
-import androidx.lifecycle.lifecycleScope
 import com.itextpdf.text.DocumentException
 import com.itextpdf.text.Rectangle
 import com.itextpdf.text.exceptions.BadPasswordException
@@ -18,8 +16,6 @@ import com.itextpdf.text.pdf.security.ExternalDigest
 import com.itextpdf.text.pdf.security.ExternalSignature
 import com.itextpdf.text.pdf.security.MakeSignature
 import com.itextpdf.text.pdf.security.PrivateKeySignature
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.spongycastle.asn1.esf.SignaturePolicyIdentifier
 import java.io.File
 import java.io.FileInputStream
@@ -31,9 +27,6 @@ import java.io.InputStream
 import java.security.GeneralSecurityException
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 /**
  * CLASE QUE CONTIENE METODOS DE AYUDA QUE SE PUEDEN LLAMAR DIRECTAMENTE
@@ -42,19 +35,6 @@ import java.util.Locale
  */
 class Utils {
     companion object {
-
-        /**
-         * METODO QUE MUESTRA UN ALERTDIALOG DE ADVERTENCIA/ERROR
-         * CON UN MENSAJE PERSONALIZADO
-         */
-        fun mostrarMensaje(context: Context, message: String) {
-            val builder = AlertDialog.Builder(context)
-            builder.setMessage(message)
-            builder.setPositiveButton("Aceptar") { dialog, _ ->
-                dialog.dismiss()
-            }
-            builder.show()
-        }
 
         /**
          * METODO QUE COMPRUEBA SI UN DOCUMENTO PDF ESTA PROTEGIDO
@@ -107,9 +87,15 @@ class Utils {
             return nfcAdapter != null
         }
 
+        fun NFCActivated(context: Context): Boolean {
+            val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(context)
+            return nfcAdapter?.isEnabled ?: false
+        }
+
+        /**
+         * METODO QUE APLICA LA FIRMA AL DOCUMENTO (O DOCUMENTOS) SELECCIONADO(S)
+         */
         fun signDocuments(
-//            context: Context,
-//            alias: String,
             privateKey: PrivateKey?,
             chain: Array<X509Certificate>?,
             docsSelected: Array<String>,

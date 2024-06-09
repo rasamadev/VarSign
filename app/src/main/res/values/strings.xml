@@ -5,6 +5,8 @@
     <string name="signed_documents">Documentos firmados</string>
     <string name="image_description">Imagen descriptiva</string>
     <string name="add_can">Añadir CAN</string>
+    <string name="txt_dudaCert"><u>¿Como instalo un certificado?</u></string>
+    <string name="txt_dudaCAN"><u>¿Que es el codigo CAN?</u></string>
     <string-array name="ages_array">
         <item>16</item>
         <item>18</item>

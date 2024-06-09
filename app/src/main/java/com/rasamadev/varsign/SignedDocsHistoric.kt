@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.rasamadev.varsign.adapter.AdapterSignedDocsHistoric
+import com.rasamadev.varsign.utils.Dialogs
 import java.io.File
 
 /**
@@ -87,7 +88,7 @@ class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItem
                 startActivity(intent)
             }
             else{
-                Utils.mostrarMensaje(this, "No se ha encontrado el documento seleccionado en la carpeta 'VarSign'. Es posible que se haya eliminado o movido a otra carpeta.")
+                Dialogs.mostrarMensaje(this, "No se ha encontrado el documento seleccionado en la carpeta 'VarSign'. Es posible que se haya eliminado o movido a otra carpeta.")
             }
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(this, "No se ha encontrado ninguna aplicacion que pueda realizar esta accion.", Toast.LENGTH_SHORT).show()
