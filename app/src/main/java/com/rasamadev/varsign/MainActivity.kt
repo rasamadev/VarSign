@@ -82,7 +82,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     /** Codigo de solicitud de permisos de escritura */
     private val REQUEST_CODE_PERMISSIONS = 123
 
-    /** String que recoge el historial de documentos firmados del DataStore
+    /**
+     * String que recoge el historial de documentos firmados del DataStore
      * sdh = SignedDocumentsHistoric
      */
     private lateinit var sdh: String
@@ -110,11 +111,19 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
         })
 
-        /** SI HEMOS VUELTO A ESTA PANTALLA DESPUES DE FIRMAR VARIOS DOCUMENTOS */
+        /**
+         * SI HEMOS VUELTO A ESTA PANTALLA DESPUES
+         * DE FIRMAR VARIOS DOCUMENTOS POR CERTIFICADO
+         */
         if (intent.getStringExtra("docsFirmados") == "true"){
             Dialogs.mostrarMensaje(this, "Los documentos se han firmado exitosamente mediante el uso de certificado digital. Se han guardado en la carpeta 'VarSign' del dispositivo.")
         }
 
+        /**
+         * SI HEMOS VUELTO A ESTA PANTALLA DESPUES
+         * DE FIRMAR UNO O VARIOS DOCUMENTOS POR
+         * DNI
+         */
         if (intent.getStringExtra("docsFirmados") == "trueDNI"){
             Dialogs.mostrarMensaje(this, "El documento (o documentos) se han firmado exitosamente mediante el uso de DNI electronico. Se ha guardado en la carpeta 'VarSign' del dispositivo.")
         }
@@ -133,8 +142,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         /** RECUPERAMOS LOS CAN´s DE LA BD */
         _canStore = CANSpecDOStore(this)
 
-        // TODO AYUDA AL USUARIO PARA INDICAR SELECCION DE ARCHIVO DE CERTIFICADO
-        // TODO PERSONALIZACION
         // TODO HACER APPINTRO
         // TODO REVISAR Y CORREGIR TOODOS LOS COMENTARIOS
     }
@@ -177,7 +184,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     Dialogs.mostrarMensaje(this, "¡Aun no has firmado ningun documento!")
                 }
                 else{
-                    startActivity(Intent(this, SignedDocsHistoric::class.java).apply {
+                    startActivity(Intent(this, SignedDocsHistoricActivity::class.java).apply {
                         putExtra("SignedDocsHistoric", sdh)
                     })
                 }
@@ -188,7 +195,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     dialogAddCan()
                 }
                 else{
-                    Dialogs.mostrarMensaje(this, "El dispositivo no cuenta con un lector de NFC incorporado.")
+                    Dialogs.mostrarMensaje(this, "El dispositivo no cuenta con un lector de NFC incorporado, por lo que esta opcion queda deshabiitada.")
                 }
             }
         }
@@ -233,14 +240,17 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                      * De ser asi, no se añadiran en la lista y se mostrara un mensaje de
                      * advertencia en la pantalla siguiente
                      */
-                    for(i in (0..(amountOfDocs - 1))){
+                    var i = 0
+                    var indice = 0
+                    while (i < amountOfDocs) {
                         val urii = Uri.fromFile(File(Environment.getExternalStoragePublicDirectory(directorySelected), pdfFileNames[i]))
-                        if (!Utils.isPasswordProtected(contentResolver.openInputStream(urii))){
-                            pdfs.add(i, pdfFileNames[i])
-                        }
-                        else{
+                        if (!Utils.isPasswordProtected(contentResolver.openInputStream(urii))) {
+                            pdfs.add(indice, pdfFileNames[i])
+                            indice++
+                        } else {
                             edf = true
                         }
+                        i++
                     }
 
                     openVariousDocListActivity(pdfs, directorySelected, edf)
@@ -358,12 +368,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         executor = ContextCompat.getMainExecutor(this)
         biometricPrompt = BiometricPrompt(this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
+                /** SI LA AUTENTICACION TIENE EXITO */
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
                     /** Mostrar dialog con opciones de firmar uno o varios documentos */
                     dialogDocOptions()
                 }
 
+                /** SI LA AUTENTICACION ES FALLIDA */
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
                     Toast.makeText(applicationContext, "Autenticacion fallida.", Toast.LENGTH_SHORT).show()
@@ -468,7 +480,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         val options = arrayOf(
             "Un documento",
-            "Varios documentos (carpeta)"
+            "Varios documentos de una carpeta"
         )
 
         builder.setItems(options) { dialog, which ->
@@ -530,7 +542,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     /**
      * ALERTDIALOG PRE-SOLICITUD DE PERMISOS DE ESCRITURA
-     *
      */
     private fun dialogPermissionsRequest(){
         val builder = AlertDialog.Builder(this)
@@ -594,6 +605,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         dialog.show()
     }
 
+    /**
+     * ALERTDIALOG PARA AÑADIR UN CAN A LA BD LOCAL
+     */
     private fun dialogAddCan(){
         val factory = LayoutInflater.from(this)
         val canEntryView = factory.inflate(R.layout.sample_can, null)
@@ -620,13 +634,19 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         ad.show()
     }
 
+    /**
+     * ALERTDIALOG DE AYUDA AL USUARIO REFERENTE A LA INSTALACION
+     * DE UN CERTIFICADO
+     */
     fun dialogDudaCert(view: View) {
         Dialogs.mostrarMensaje(this, "Para instalar su certificado digital en su dispositivo movil, debe seleccionar desde el explorador de archivos el fichero de copia de seguridad de su certificado con formato '.pfx' o '.p12'.\n\nUna vez seleccionado, se le solicitará la contraseña que establecio en el momento de la solicitud del certificado. Cuando haya ingresado la contraseña correctamente, se le dara la opcion de establecer el alias y el almacen donde guardar el certificado.")
     }
 
+    /**
+     * ALERTDIALOG DE AYUDA AL USUARIO REFERENTE A LO QUE ES EL
+     * NUMERO CAN DEL DNI ELECTRONICO
+     */
     fun dialogDudaCAN(view: View) {
-//        Dialogs.mostrarMensaje(this, "El código CAN del DNI es una clave numérica de 6 dígitos ubicado abajo a la derecha del mismo y que permite al lector de DNI 3.0 crear una clave de sesión para el intercambio de datos. En otras palabras: la única forma de acceder a la información contenida en el DNI 3.0 de forma remota a través de RFID o NFC es conociendo la CAN.")
-
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_duda_can, null)
         val builder = AlertDialog.Builder(this)
             .setView(dialogView)

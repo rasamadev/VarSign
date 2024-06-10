@@ -41,7 +41,7 @@
         <activity android:name=".SingleDocActivity" />
         <activity android:name=".VariousDocListActivity" />
         <activity
-            android:name=".SignedDocsHistoric"
+            android:name=".SignedDocsHistoricActivity"
             android:exported="false" />
         <activity android:name=".DNISignActivity" />
     </application>

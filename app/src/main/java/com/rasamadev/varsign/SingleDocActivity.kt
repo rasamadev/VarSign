@@ -441,14 +441,17 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         dialog.show()
     }
 
-    // TODO RELLENAR DESCRIPCION
+    /**
+     * ALERTDIALOG DE MENU DE SELECCION DEL METODO DE FIRMA A USAR
+     * (POR CERTIFICADO DIGITAL O DNI ELECTRONICO)
+     */
     private fun dialogSignMethods() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Seleccione un metodo de firmado")
 
         val options = arrayOf(
             "Certificado digital",
-            "DNI electronico (NFC)"
+            "DNI electronico (mediante NFC)"
         )
 
         builder.setItems(options) { dialog, which ->
@@ -491,6 +494,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                                 Utils.dialogNoCans(this)
                             }
                             else{
+                                /** ABRIMOS EL ALERTDIALOG DE SELECCION DE UN CAN */
                                 val factory = LayoutInflater.from(this)
                                 val canListView: View = factory.inflate(R.layout.can_list, null)
                                 val ad = AlertDialog.Builder(this).create()
@@ -507,12 +511,13 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                                 ad.show()
                             }
                         }
+                        /** SI EL DISPOSITIVO TIENE NFC, PERO ESTA DESHABILITADO */
                         else{
                             dialogNFCConfig()
                         }
                     }
                     else{
-                        Dialogs.mostrarMensaje(this, "El dispositivo no cuenta con un lector de NFC incorporado.")
+                        Dialogs.mostrarMensaje(this, "El dispositivo no cuenta con un lector de NFC incorporado, por lo que no es posible firmar usando este metodo.")
                     }
                 }
             }
@@ -543,7 +548,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         builder.setPositiveButton("Aceptar") { dialog, which ->
             /** FIRMA CON CERTIFICADO DIGITAL */
             if(cert){
-                /** ARRANCAMOS EN EL HILO PRINCIPAL DE LA APLICACION */
+                /** ARRANCAMOS EN UN NUEVO HILO */
                 Executors.newSingleThreadExecutor().execute{
                     /** RECOGEMOS LA CLAVE PRIVADA Y EL CHAIN DEL CERTIFICADO SELECCIONADO */
                     val privateKey = KeyChain.getPrivateKey(applicationContext, aliasCert)
@@ -654,6 +659,11 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
         dialog.show()
     }
 
+    /**
+     * ALERTDIALOG QUE SE MUESTRA CUANDO EL USUARIO INTENTA ACCEDER
+     * AL METODO DE FIRMA POR DNI PERO TIENE EL LECTOR NFC DESHABILITADO.
+     * CONTIENE UN BOTON QUE LLEVA A LOS AJUSTES DE CONECTIVIDAD DEL DISPOSITIVO.
+     */
     private fun dialogNFCConfig() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")

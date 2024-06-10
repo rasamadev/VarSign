@@ -19,7 +19,7 @@ import java.io.File
  * CLASE QUE MUESTRA LA PANTALLA DEL HISTORICO DE DOCUMENTOS FIRMADOS
  * POR EL USUARIO Y CONTROLA CUANDO SE PULSA EN UNO
  */
-class SignedDocsHistoric : AppCompatActivity(), AdapterSignedDocsHistoric.OnItemClickListener {
+class SignedDocsHistoricActivity : AppCompatActivity(), AdapterSignedDocsHistoric.OnItemClickListener {
 
     // ELEMENTOS PANTALLA
 
