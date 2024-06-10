@@ -491,7 +491,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
                         if(Utils.NFCActivated(this)){
                             /** SI NO HAY CAN´S GUARDADOS EN LA BD */
                             if(_canStore.getAll().isEmpty()){
-                                Utils.dialogNoCans(this)
+                                Dialogs.dialogNoCans(this)
                             }
                             else{
                                 /** ABRIMOS EL ALERTDIALOG DE SELECCION DE UN CAN */

@@ -141,9 +141,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         /** RECUPERAMOS LOS CAN´s DE LA BD */
         _canStore = CANSpecDOStore(this)
-
-        // TODO HACER APPINTRO
-        // TODO REVISAR Y CORREGIR TOODOS LOS COMENTARIOS
     }
 
     /**
@@ -546,9 +543,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private fun dialogPermissionsRequest(){
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")
-        builder.setMessage("La aplicacion necesita permisos de almacenamiento para funcionar correctamente.") // TODO PERFECCIONAR MENSAJE
+        builder.setMessage("Es necesario que la aplicacion tenga permisos de almacenamiento para funcionar correctamente.")
 
-        builder.setPositiveButton("Aceptar") { dialog, which ->
+        builder.setPositiveButton("Dar permisos") { dialog, which ->
             dialog.dismiss()
 
             /**

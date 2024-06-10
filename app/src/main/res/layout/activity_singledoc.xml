@@ -92,7 +92,7 @@
             android:id="@+id/rbArrCen"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Arriba - centro" />
+            android:text="Arriba en el centro" />
 
         <RadioButton
             android:id="@+id/rbArrDer"
@@ -110,7 +110,7 @@
             android:id="@+id/rbAbaCen"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Abajo - centro" />
+            android:text="Abajo en el centro" />
 
         <RadioButton
             android:id="@+id/rbAbaDer"

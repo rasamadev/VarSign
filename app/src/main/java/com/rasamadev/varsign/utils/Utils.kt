@@ -66,27 +66,19 @@ class Utils {
             }
         }
 
-        // TODO DESCRIPCION
-        fun dialogNoCans(context: Context){
-            val builder = AlertDialog.Builder(context)
-            builder.setTitle("¡AÑADA UN CAN PRIMERO!")
-            builder.setMessage("Puede añadirlo desde el menu principal de la aplicacion en el boton 'AÑADIR CAN''")
-
-            builder.setPositiveButton("Aceptar") { dialog, which ->
-                dialog.dismiss()
-            }
-
-            builder.setCancelable(false)
-            val dialog = builder.create()
-            dialog.show()
-        }
-
-        // TODO DESCRIPCIO
+        /**
+         * METODO QUE COMPRUEBA SI EL DISPOSITIVO MOVIL
+         * CUENTA CON UN LECTOR DE NFC
+         */
         fun NFCExists(context: Context): Boolean {
             val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(context)
             return nfcAdapter != null
         }
 
+        /**
+         * METODO QUE COMPRUEBA SI EL LECTOR NFC ESTA
+         * ACTIVADO EN EL DISPOSITIVO
+         */
         fun NFCActivated(context: Context): Boolean {
             val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(context)
             return nfcAdapter?.isEnabled ?: false
@@ -115,7 +107,6 @@ class Utils {
                     null
                 )
 
-                // TODO ME PIDE LA CONTRASEÑA POR CADA DOCUMENTO A FIRMAR???
                 for(docName: String in docsSelected){
                     /** ESPECIFICAMOS DONDE IRA GUARDADO EL DOCUMENTO FIRMADO (Carpeta 'VarSign') */
                     val fileout = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_$docName")
