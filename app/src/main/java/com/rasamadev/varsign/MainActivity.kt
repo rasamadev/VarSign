@@ -521,7 +521,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private fun dialogSecurityConfig() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")
-        builder.setMessage("Este dispositivo no cuenta con un metodo de seguridad configurada. Por favor, acceda a los ajustes para configurarlo.")
+        builder.setMessage("Este dispositivo no cuenta con un metodo de bloqueo de seguridad configurado.\n\nPor favor, acceda a los ajustes y despues a la configuracion de seguridad para habilitar al menos un metodo de bloqueo.")
 
         builder.setPositiveButton("Ir a ajustes") { dialog, which ->
             val intent = Intent(Settings.ACTION_SETTINGS)

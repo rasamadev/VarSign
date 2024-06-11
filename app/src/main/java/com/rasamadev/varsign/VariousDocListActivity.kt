@@ -207,7 +207,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
     private fun dialogDocumentsAlreadyExists(docsFounded: String) {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")
-        builder.setMessage("Se ha encontrado en la carpeta 'VarSign' una copia con el mismo nombre de los siguientes documentos seleccionados:\n\n$docsFounded\nSi continua, seran sobreescritos por los documentos actuales, ¿Esta seguro?")
+        builder.setMessage("Se ha encontrado en la carpeta 'VarSign' una copia con el mismo nombre de los siguientes documentos seleccionados:\n\n$docsFounded\nSi continua, seran sobrescritos por los documentos actuales, ¿Esta seguro?")
 
         builder.setPositiveButton("Aceptar") { dialog, which ->
             dialogSignPosition()

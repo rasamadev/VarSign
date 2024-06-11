@@ -426,7 +426,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
     private fun dialogDocumentAlreadyExists() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("ADVERTENCIA")
-        builder.setMessage("Se ha encontrado un documento con el nombre 'firmado_$docName' en la carpeta 'VarSign'.\n\nSi continua, ese documento se sobreescribirá por el documento actual, ¿esta seguro?")
+        builder.setMessage("Se ha encontrado un documento con el nombre 'firmado_$docName' en la carpeta 'VarSign'.\n\nSi continua, ese documento se sobrescribirá por el documento actual, ¿esta seguro?")
 
         builder.setPositiveButton("Aceptar") { dialog, which ->
             numPageSign = Integer.parseInt(etNumPagDoc.text.toString())
