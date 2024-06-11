@@ -447,7 +447,7 @@ class SingleDocActivity : AppCompatActivity(), View.OnClickListener {
      */
     private fun dialogSignMethods() {
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("Seleccione un metodo de firmado")
+        builder.setTitle("SELECCIONE UN METODO DE FIRMA")
 
         val options = arrayOf(
             "Certificado digital",

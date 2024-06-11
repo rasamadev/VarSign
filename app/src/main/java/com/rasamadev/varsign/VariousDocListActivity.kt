@@ -158,7 +158,7 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
                 for (i in 0 until docsSelected.size) {
                     val f = File(Environment.getExternalStoragePublicDirectory("VarSign"), "firmado_${docsSelected[i]}")
                     if(f.exists()){
-                        docsFounded += "-${docsSelected[i]}\n"
+                        docsFounded += "- ${docsSelected[i]}\n"
                     }
                 }
 
@@ -265,11 +265,11 @@ class VariousDocListActivity : AppCompatActivity(), View.OnClickListener {
      */
     private fun dialogSignMethods() {
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("Seleccione un metodo de firmado")
+        builder.setTitle("SELECCIONE UN METODO DE FIRMA")
 
         val options = arrayOf(
             "Certificado digital",
-            "DNI electronico (mediante NFC)"
+            "DNI electrónico (mediante NFC)"
         )
 
         builder.setItems(options) { dialog, which ->

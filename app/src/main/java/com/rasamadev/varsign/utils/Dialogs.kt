@@ -26,7 +26,7 @@ class Dialogs {
         fun dialogNoCans(context: Context){
             val builder = AlertDialog.Builder(context)
             builder.setTitle("¡AÑADA UN CAN PRIMERO!")
-            builder.setMessage("Puede añadirlo desde el menu principal de la aplicacion en el boton 'AÑADIR CAN''")
+            builder.setMessage("Puede añadirlo desde el menu principal de la aplicacion pulsando en el boton 'AÑADIR CAN'")
 
             builder.setPositiveButton("Aceptar") { dialog, which ->
                 dialog.dismiss()

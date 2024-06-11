@@ -473,7 +473,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
      */
     private fun dialogDocOptions() {
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("Seleccione una opción")
+        builder.setTitle("SELECCIONE UNA OPCIÓN")
 
         val options = arrayOf(
             "Un documento",
